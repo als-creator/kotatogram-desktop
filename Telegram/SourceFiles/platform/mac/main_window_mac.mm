@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "platform/mac/main_window_mac.h"
 
+#include "kotato/kotato_lang.h"
 #include "data/data_session.h"
 #include "core/application.h"
 #include "core/sandbox.h"
