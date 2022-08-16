@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "boxes/about_box.h"
 
+#include "kotato/kotato_version.h"
 #include "kotato/kotato_lang.h"
 #include "base/platform/base_platform_info.h"
 #include "core/application.h"
@@ -101,6 +102,7 @@ void AboutBox(not_null<Ui::GenericBox*> box) {
 			st::boxRowPadding.right(),
 			st::boxRowPadding.bottom()));
 	version->setClickedCallback([=] {
+		/*
 		if (cRealAlphaVersion()) {
 			auto url = u"https://tdesktop.com/"_q;
 			if (Platform::IsWindows32Bit()) {
@@ -128,8 +130,11 @@ void AboutBox(not_null<Ui::GenericBox*> box) {
 					"version of Telegram Desktop was copied "
 					"to the clipboard."));
 		} else {
+		*/
 			File::OpenUrl(Core::App().changelogLink());
+		/*
 		}
+		*/
 	});
 
 	Ui::AddSkip(layout, st::aboutTopSkip);
@@ -169,10 +174,10 @@ QString telegramFaqLink() {
 }
 
 QString currentVersionText() {
-	auto result = QString::fromLatin1(AppVersionStr);
+	auto result = QString::fromLatin1(AppKotatoVersionStr);
 	if (cAlphaVersion()) {
-		result += u" alpha %1"_q.arg(cAlphaVersion() % 1000);
-	} else if (AppBetaVersion) {
+		result += u"-%1.%2"_q.arg(AppKotatoTestBranch).arg(AppKotatoTestVersion);
+	} else if (AppKotatoBetaVersion) {
 		result += " beta";
 	}
 	if (Platform::IsWindows64Bit()) {
@@ -183,6 +188,7 @@ QString currentVersionText() {
 #ifdef _DEBUG
 	result += " DEBUG";
 #endif
+	result += qsl(" (TD %1)").arg(AppVersionStr);
 	return result;
 }
 
