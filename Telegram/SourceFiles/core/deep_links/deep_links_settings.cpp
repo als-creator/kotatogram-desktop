@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "core/deep_links/deep_links_router.h"
 
+#include "kotato/kotato_settings_menu.h"
 #include "apiwrap.h"
 #include "base/binary_guard.h"
 #include "boxes/add_contact_box.h"
@@ -2137,6 +2138,11 @@ void RegisterSettingsHandlers(Router &router) {
 	router.add(u"settings"_q, {
 		.path = u"login_email"_q,
 		.action = CodeBlock{ ShowLoginEmail },
+	});
+
+	router.add(u"settings"_q, {
+		.path = u"kotato"_q,
+		.action = SettingsSection{ ::Settings::Kotato::Id() },
 	});
 }
 
