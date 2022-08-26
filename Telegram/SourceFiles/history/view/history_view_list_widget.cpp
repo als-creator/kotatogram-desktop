@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "history/view/history_view_list_widget.h"
 
+#include "kotato/kotato_settings.h"
 #include "base/unixtime.h"
 #include "base/qt/qt_key_modifiers.h"
 #include "base/qt/qt_common_adapters.h"
@@ -492,6 +493,22 @@ ListWidget::ListWidget(
 			registerReadMetricsActivity();
 		}, lifetime());
 	}
+
+	const auto reinitBubbles = [=] {
+		crl::on_main(this, [=] {
+			for (const auto &view : _items) {
+				view->initDimensions();
+			}
+			_itemsWidth = 0;
+			updateSize();
+		});
+	};
+	::Kotato::JsonSettings::Events(
+		"adaptive_bubbles"
+	) | rpl::on_next(reinitBubbles, lifetime());
+	::Kotato::JsonSettings::Events(
+		"monospace_large_bubbles"
+	) | rpl::on_next(reinitBubbles, lifetime());
 
 	_scrollDateHideTimer.setCallback([this] { scrollDateHideByTimer(); });
 	_session->data().viewRepaintRequest(
@@ -4328,7 +4345,7 @@ void ListWidget::mouseActionUpdate() {
 					dateWidth += st::msgServicePadding.left() + st::msgServicePadding.right();
 					auto dateLeft = st::msgServiceMargin.left();
 					auto maxwidth = view->width();
-					if (_isChatWide) {
+					if (_isChatWide && !::Kotato::JsonSettings::GetBool("adaptive_bubbles")) {
 						maxwidth = qMin(maxwidth, int32(st::msgMaxWidth + 2 * st::msgPhotoSkip + 2 * st::msgMargin.left()));
 					}
 					auto widthForDate = maxwidth - st::msgServiceMargin.left() - st::msgServiceMargin.left();

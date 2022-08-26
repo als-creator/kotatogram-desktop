@@ -255,6 +255,7 @@ public:
 	[[nodiscard]] bool allowTextSelectionByHandler(
 		const ClickHandlerPtr &handler) const override;
 	[[nodiscard]] int infoWidth() const override;
+	[[nodiscard]] int plainMaxWidth() const override;
 	[[nodiscard]] int bottomInfoFirstLineWidth() const override;
 	[[nodiscard]] bool bottomInfoIsWide() const override;
 	[[nodiscard]] bool isSignedAuthorElided() const override;

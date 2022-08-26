@@ -285,6 +285,7 @@ public:
 
 	void resizeToWidth(int newWidth);
 	void forceFullResize();
+	void forceFullReinit();
 	int height() const;
 
 	void itemRemoved(not_null<HistoryItem*> item);

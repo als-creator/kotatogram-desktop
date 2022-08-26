@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "history/view/media/history_view_document.h"
 
+#include "kotato/kotato_settings.h"
 #include "base/random.h"
 #include "lang/lang_keys.h"
 #include "lottie/lottie_icon.h"
@@ -461,6 +462,7 @@ void Document::fillNamedFromData(not_null<HistoryDocumentNamed*> named) {
 
 QSize Document::countOptimalSize() {
 	auto hasTranscribe = false;
+	const auto captioned = Get<HistoryDocumentCaptioned>();
 	const auto voice = Get<HistoryDocumentVoice>();
 	if (voice) {
 		const auto history = _realParent->history();
@@ -568,7 +570,11 @@ QSize Document::countOptimalSize() {
 
 	if (const auto named = Get<HistoryDocumentNamed>()) {
 		accumulate_max(maxWidth, tleft + named->name.maxWidth() + tright);
-		accumulate_min(maxWidth, st::msgMaxWidth);
+		if (::Kotato::JsonSettings::GetBool("adaptive_bubbles") && captioned) {
+			accumulate_max(maxWidth, captioned->caption.maxWidth() + st::msgPadding.left() + st::msgPadding.right());
+		} else {
+			accumulate_min(maxWidth, st::msgMaxWidth);
+		}
 	}
 	if (voice) {
 		const auto maxWaveformWidth = ::Media::Player::kWaveformSamplesCount *
