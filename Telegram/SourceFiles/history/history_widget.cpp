@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "history/history_widget.h"
 
+#include "kotato/kotato_settings.h"
 #include "api/api_compose_with_ai.h"
 #include "api/api_editing.h"
 #include "api/api_bot.h"
@@ -702,6 +703,14 @@ HistoryWidget::HistoryWidget(
 	) | rpl::on_next([=] {
 		crl::on_main(this, [=] {
 			updateFieldSubmitSettings();
+		});
+	}, lifetime());
+
+	::Kotato::JsonSettings::Events(
+		"big_emoji_outline"
+	) | rpl::on_next([=] {
+		crl::on_main(this, [=] {
+			updateHistoryGeometry();
 		});
 	}, lifetime());
 
