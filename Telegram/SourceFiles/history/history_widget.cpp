@@ -760,6 +760,16 @@ HistoryWidget::HistoryWidget(
 		});
 	}, lifetime());
 
+	::Kotato::JsonSettings::Events(
+		"always_show_scheduled"
+	) | rpl::on_next([=] {
+		crl::on_main(this, [=] {
+			refreshScheduledToggle();
+			updateControlsVisibility();
+			updateControlsGeometry();
+		});
+	}, lifetime());
+
 	session().data().channelDifferenceTooLong(
 	) | rpl::filter([=](not_null<ChannelData*> channel) {
 		return _peer == channel.get();
@@ -3455,20 +3465,24 @@ void HistoryWidget::setupScheduledToggle() {
 }
 
 void HistoryWidget::refreshScheduledToggle() {
-	const auto has = _history
-		&& _canSendMessages
-		&& (session().scheduledMessages().count(_history) > 0);
-	if (!_scheduled && has) {
-		_scheduled.create(this, st::historyScheduledToggle);
-		_scheduled->setAccessibleName(tr::lng_scheduled_messages(tr::now));
-		_scheduled->show();
-		_scheduled->addClickHandler([=] {
-			controller()->showSection(
-				std::make_shared<HistoryView::ScheduledMemento>(_history));
-		});
-		orderWidgets(); // Raise drag areas to the top.
-	} else if (_scheduled && !has) {
+	const auto canWrite = _history && _canSendMessages;
+	const auto has = canWrite && (session().scheduledMessages().count(_history) > 0);
+	if (_scheduled && !canWrite) {
 		_scheduled.destroy();
+	} else if (canWrite) {
+		if (_scheduled) {
+			_scheduled.destroy();
+		}
+		if (::Kotato::JsonSettings::GetBool("always_show_scheduled") || has){
+			_scheduled.create(this, (has ? st::historyScheduledToggle : st::historyScheduledToggleEmpty));
+			_scheduled->setAccessibleName(tr::lng_scheduled_messages(tr::now));
+			_scheduled->show();
+			_scheduled->addClickHandler([=] {
+				controller()->showSection(
+					std::make_shared<HistoryView::ScheduledMemento>(_history));
+			});
+			orderWidgets(); // Raise drag areas to the top.
+		}
 	}
 }
 
