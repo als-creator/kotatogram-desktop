@@ -1544,3 +1544,7 @@ aiComposeBoxInfoButton: IconButton(boxTitleClose) {
 	ripple: defaultRippleAnimation;
 }
 aiComposeShadowOpacity: 0.3;
+
+fontsBoxTextStyle: TextStyle(defaultTextStyle) {
+	font: font(13px);
+}
