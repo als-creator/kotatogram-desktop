@@ -8160,13 +8160,15 @@ void HistoryWidget::keyPressEvent(QKeyEvent *e) {
 				}
 				return;
 			}
-			const auto item = _history
-				? _history->lastEditableMessage()
-				: nullptr;
-			if (item) {
-				editMessage(item, {});
-			} else {
-				_scroll->keyPressEvent(e);
+			if (!::Kotato::JsonSettings::GetBool("disable_up_edit")) {
+				const auto item = _history
+					? _history->lastEditableMessage()
+					: nullptr;
+				if (item) {
+					editMessage(item, {});
+				} else {
+					_scroll->keyPressEvent(e);
+				}
 			}
 		}
 	} else if (e->key() == Qt::Key_Up
