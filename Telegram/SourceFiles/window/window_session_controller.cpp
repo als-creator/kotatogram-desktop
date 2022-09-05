@@ -3158,7 +3158,11 @@ not_null<MainWidget*> SessionController::content() const {
 }
 
 int SessionController::filtersWidth() const {
-	return _filters ? st::windowFiltersWidth : 0;
+	return _filters
+			? (::Kotato::JsonSettings::GetBool("folders/hide_names")
+				? st::windowFiltersWidthNoText
+				: st::windowFiltersWidth)
+			: 0;
 }
 
 bool SessionController::enoughSpaceForFilters() const {

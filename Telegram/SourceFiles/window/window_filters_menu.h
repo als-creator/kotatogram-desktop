@@ -53,6 +53,7 @@ private:
 		bool toBeginning = false);
 	void setupMainMenuIcon();
 	void showMenu(QPoint position, FilterId id);
+	void showEditMenu(QPoint position);
 	void scrollToButton(not_null<Ui::RpWidget*> widget);
 	void openFiltersSettings();
 	void setupDragAndDrop();

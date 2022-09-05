@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "window/window_filters_menu.h"
 
+#include "kotato/kotato_settings.h"
+#include "kotato/kotato_lang.h"
 #include "mainwindow.h"
 #include "window/window_session_controller.h"
 #include "window/window_controller.h"
@@ -26,6 +28,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/wrap/vertical_layout_reorder.h"
 #include "ui/widgets/menu/menu_add_action_callback_factory.h"
 #include "ui/widgets/popup_menu.h"
+#include "ui/toast/toast.h"
 #include "ui/boxes/confirm_box.h"
 #include "ui/power_saving.h"
 #include "ui/ui_utility.h"
@@ -83,7 +86,9 @@ void FiltersMenu::setup() {
 
 	_parent->heightValue(
 	) | rpl::on_next([=](int height) {
-		const auto width = st::windowFiltersWidth;
+		const auto width = (::Kotato::JsonSettings::GetBool("folders/hide_names")
+							? st::windowFiltersWidthNoText
+							: st::windowFiltersWidth);
 		_outer.setGeometry({ 0, 0, width, height });
 		_menu.resizeToWidth(width);
 		_menu.move(0, 0);
@@ -243,11 +248,13 @@ void FiltersMenu::refresh() {
 
 void FiltersMenu::setupList() {
 	_list = _container->add(object_ptr<Ui::VerticalLayout>(_container));
-	_setup = prepareButton(
-		_container,
-		-1,
-		{ TextWithEntities{ tr::lng_filters_setup(tr::now) } },
-		Ui::FilterIcon::Edit);
+	if (!::Kotato::JsonSettings::GetBool("folders/hide_edit_button")) {
+		_setup = prepareButton(
+			_container,
+			-1,
+			{ TextWithEntities{ tr::lng_filters_setup(tr::now) } },
+			Ui::FilterIcon::Edit);
+	}
 	_reorder = std::make_unique<Ui::VerticalLayoutReorder>(_list, &_scroll);
 
 	_reorder->updates(
@@ -287,7 +294,9 @@ base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareButton(
 	};
 	auto prepared = object_ptr<Ui::SideBarButton>(
 		container,
-		id ? title.text : TextWithEntities{ tr::lng_filters_all(tr::now) },
+		(::Kotato::JsonSettings::GetBool("folders/hide_names")
+			? TextWithEntities()
+			: id ? title.text : TextWithEntities{ tr::lng_filters_all(tr::now) }),
 		st::windowFiltersButton,
 		Core::TextContext({
 			.session = &_session->session(),
@@ -349,11 +358,11 @@ base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareButton(
 			openFiltersSettings();
 		}
 	});
-	if (id >= 0) {
+	if (id >= -1) {
 		raw->setAcceptDrops(true);
 		raw->events(
 		) | rpl::filter([=](not_null<QEvent*> e) {
-			return ((e->type() == QEvent::ContextMenu) && (id >= 0))
+			return ((e->type() == QEvent::ContextMenu) && (id >= -1))
 				|| e->type() == QEvent::DragEnter
 				|| e->type() == QEvent::DragMove
 				|| e->type() == QEvent::DragLeave;
@@ -362,7 +371,11 @@ base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareButton(
 				return;
 			}
 			if (e->type() == QEvent::ContextMenu) {
-				showMenu(QCursor::pos(), id);
+				if (id == -1) {
+					showEditMenu(QCursor::pos());
+				} else if (id > 0) {
+					showMenu(QCursor::pos(), id);
+				}
 			} else if (e->type() == QEvent::DragEnter) {
 				using namespace Storage;
 				const auto d = static_cast<QDragEnterEvent*>(e.get());
@@ -455,6 +468,29 @@ void FiltersMenu::showMenu(QPoint position, FilterId id) {
 		_popupMenu = nullptr;
 		return;
 	}
+	_popupMenu->popup(position);
+}
+
+void FiltersMenu::showEditMenu(QPoint position) {
+	if (_popupMenu) {
+		_popupMenu = nullptr;
+		return;
+	}
+	_popupMenu = base::make_unique_q<Ui::PopupMenu>(
+		_setup,
+		st::popupMenuWithIcons);
+	_popupMenu->addAction(
+		ktr("ktg_filters_hide_button"),
+		crl::guard(&_outer, [=] {
+			::Kotato::JsonSettings::Set("folders/hide_edit_button", true);
+			::Kotato::JsonSettings::Write();
+			_setup = nullptr;
+			Ui::Toast::Show(Ui::Toast::Config{
+				.text = { ktr("ktg_filters_hide_edit_toast") },
+				.st = &st::windowArchiveToast,
+			});
+		}), &st::menuIconHide);
+
 	_popupMenu->popup(position);
 }
 
