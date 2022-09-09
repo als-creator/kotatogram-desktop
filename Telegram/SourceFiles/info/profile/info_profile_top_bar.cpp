@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/profile/info_profile_top_bar.h"
 
 #include "kotato/kotato_radius.h"
+#include "kotato/kotato_settings.h"
 #include "api/api_peer_colors.h"
 #include "api/api_peer_photo.h"
 #include "api/api_user_privacy.h"
@@ -816,7 +817,7 @@ void TopBar::setupActions(not_null<Window::SessionController*> controller) {
 		buttons.push_back(message);
 		_actions->add(message);
 	}
-	if (!peer->isSelf()) {
+	if (!peer->isSelf() && !::Kotato::JsonSettings::GetBool("profile_top_mute")) {
 		const auto notifications = Ui::CreateChild<TopBarActionButton>(
 			this,
 			tr::lng_profile_action_short_mute(tr::now),
