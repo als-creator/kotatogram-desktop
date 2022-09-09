@@ -102,6 +102,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_app_config.h"
 #include "main/main_domain.h"
 #include "main/main_session.h"
+#include "main/main_account.h"
 #include "main/main_session_settings.h"
 #include "lang/lang_keys.h"
 #include "apiwrap.h"
@@ -1996,6 +1997,33 @@ void SessionController::toggleFiltersMenu(bool enabled) {
 	_filtersMenuChanged.fire({});
 }
 
+void SessionController::reloadFiltersMenu() {
+	const auto enabled = !session().data().chatsFilters().list().empty();
+	if (enabled) {
+		auto previousFilter = activeChatsFilterCurrent();
+		rpl::single(rpl::empty) | rpl::then(
+			filtersMenuChanged()
+		) | rpl::on_next([=] {
+			toggleFiltersMenu(true);
+			if (previousFilter) {
+				if (activeChatsFilterCurrent() != previousFilter) {
+					resetFakeUnreadWhileOpened();
+				}
+				_activeChatsFilter.force_assign(previousFilter);
+				if (previousFilter) {
+					closeFolder(true);
+				}
+			}
+		}, lifetime());
+
+		if (activeChatsFilterCurrent() != 0) {
+			resetFakeUnreadWhileOpened();
+		}
+		_activeChatsFilter.force_assign(0);
+		toggleFiltersMenu(false);
+	}
+}
+
 rpl::producer<> SessionController::filtersMenuChanged() const {
 	return _filtersMenuChanged.events();
 }
@@ -2006,8 +2034,10 @@ void SessionController::checkOpenedFilter() {
 		const auto &list = session().data().chatsFilters().list();
 		const auto i = ranges::find(list, filterId, &Data::ChatFilter::id);
 		if (i == end(list)) {
+			const auto defaultFilterId = session().account().defaultFilterId();
+			const auto j = ranges::find(list, FilterId(defaultFilterId), &Data::ChatFilter::id);
 			setActiveChatsFilter(
-				0,
+				j == end(list) ? 0 : defaultFilterId,
 				{ anim::type::normal, anim::activation::background });
 		}
 	}
@@ -2061,13 +2091,19 @@ void SessionController::openFolder(not_null<Data::Folder*> folder) {
 	_openedFolder = folder.get();
 }
 
-void SessionController::closeFolder() {
-	if (_openedFolder.current()
-		&& windowId().type == SeparateType::Archive) {
-		Core::App().closeWindow(_window);
-		return;
+void SessionController::closeFolder(bool force) {
+	const auto defaultFilterId = session().account().defaultFilterId();
+	if (defaultFilterId == 0 || force) {
+		if (_openedFolder.current()
+			&& windowId().type == SeparateType::Archive) {
+			Core::App().closeWindow(_window);
+			return;
+		}
+		_openedFolder = nullptr;
+	} else {
+		setActiveChatsFilter(defaultFilterId);
+		checkOpenedFilter();
 	}
-	_openedFolder = nullptr;
 }
 
 bool SessionController::showForumInDifferentWindow(
@@ -3196,7 +3232,7 @@ void SessionController::setActiveChatsFilter(
 	_activeChatsFilter.force_assign(id);
 	if (id || !changed) {
 		closeForum();
-		closeFolder();
+		closeFolder(true);
 	}
 	if (adaptive().isOneColumn()) {
 		clearSectionStack(params);

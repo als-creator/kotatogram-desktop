@@ -50,6 +50,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "mainwindow.h"
 #include "mainwidget.h"
+#include "main/main_account.h"
 #include "main/main_domain.h"
 #include "main/main_session.h"
 #include "main/main_session_settings.h"
@@ -2542,6 +2543,7 @@ void Widget::slideFinished() {
 
 void Widget::escape() {
 	if (!cancelSearch({ .jumpBackToSearchedChat = true })) {
+		const auto defaultFilterId = session().account().defaultFilterId();
 		if (const auto forum = controller()->shownForum().current()) {
 			const auto id = controller()->windowId();
 			const auto initial = id.forum();
@@ -2559,7 +2561,11 @@ void Widget::escape() {
 		} else if (controller()->isPrimary()) {
 			const auto filters = &session().data().chatsFilters();
 			const auto &list = filters->list();
-			const auto first = list.empty() ? FilterId() : list.front().id();
+			const auto first = list.empty()
+				? FilterId()
+				: defaultFilterId != 0
+				? defaultFilterId
+				: list.front().id();
 			if (controller()->activeChatsFilterCurrent() != first) {
 				controller()->setActiveChatsFilter(first);
 			}

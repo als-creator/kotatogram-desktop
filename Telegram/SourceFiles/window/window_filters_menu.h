@@ -28,6 +28,8 @@ namespace Window {
 
 class SessionController;
 
+void ResetFiltersFirstLoad();
+
 class FiltersMenu final {
 public:
 	FiltersMenu(
@@ -54,6 +56,7 @@ private:
 	void setupMainMenuIcon();
 	void showMenu(QPoint position, FilterId id);
 	void showEditMenu(QPoint position);
+	void setDefaultFilter(FilterId id);
 	void scrollToButton(not_null<Ui::RpWidget*> widget);
 	void openFiltersSettings();
 	void setupDragAndDrop();
