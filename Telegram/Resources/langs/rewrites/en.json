@@ -116,6 +116,7 @@
 	"ktg_filters_cloud_limit": "Sorry, you can't create more cloud folders. You can create local folder instead.",
 	"ktg_filters_hide_button": "Hide button",
 	"ktg_filters_hide_edit_toast": "Edit button is hidden.\nYou can enable it back in Kotatogram Settings.",
+	"ktg_settings_telegram_sites_autologin": "Auto-login on Telegram sites",
 	"ktg_in_app_update_disabled": "In-app updater is disabled.",
 	"dummy_last_string": ""
 }
