@@ -297,7 +297,8 @@ void Inner::mouseReleaseEvent(QMouseEvent *e) {
 void Inner::selectInlineResult(
 		int index,
 		Api::SendOptions options,
-		bool open) {
+		bool open,
+		bool sendPreview) {
 	const auto item = _mosaic.maybeItemAt(index);
 	if (!item) {
 		return;
@@ -336,6 +337,7 @@ void Inner::selectInlineResult(
 				.options = std::move(options),
 				.messageSendingFrom = messageSendingFrom(),
 				.open = open,
+				.sendPreview = sendPreview,
 			});
 		}
 	}
@@ -390,8 +392,26 @@ void Inner::contextMenuEvent(QContextMenuEvent *e) {
 		details,
 		SendMenu::DefaultCallback(show, send));
 
+	const auto hideViaActions = [&] {
+		const auto sendPreview = [=, selected = _selected](Api::SendOptions options) {
+			selectInlineResult(selected, options, false, true);
+		};
+
+		SendMenu::FillSendPreviewMenu(
+			_menu,
+			details.type,
+			[=] { sendPreview({}); },
+			SendMenu::DefaultSilentCallback(sendPreview),
+			SendMenu::DefaultScheduleCallback(
+				_controller->uiShow(),
+				details,
+				sendPreview));
+	};
+
 	const auto item = _mosaic.itemAt(_selected);
 	if (const auto previewDocument = item->getPreviewDocument()) {
+		hideViaActions();
+
 		auto callback = [&](
 				const QString &text,
 				Fn<void()> &&done,
@@ -402,6 +422,8 @@ void Inner::contextMenuEvent(QContextMenuEvent *e) {
 			std::move(callback),
 			_controller->uiShow(),
 			previewDocument);
+	} else if (item->getPreviewPhoto()) {
+		hideViaActions();
 	}
 
 	SendMenu::AttachSendMenuEffect(

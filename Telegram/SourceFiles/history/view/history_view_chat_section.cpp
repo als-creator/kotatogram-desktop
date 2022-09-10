@@ -70,6 +70,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_saved_messages.h"
 #include "data/data_saved_sublist.h"
 #include "data/data_session.h"
+#include "data/data_document.h"
 #include "data/data_user.h"
 #include "data/data_chat.h"
 #include "data/data_channel.h"
@@ -926,7 +927,25 @@ void ChatWidget::setupComposeControls() {
 		controller()->sendingAnimation().appendSending(
 			chosen.messageSendingFrom);
 		const auto localId = chosen.messageSendingFrom.localId;
-		sendInlineResult(chosen.result, chosen.bot, chosen.options, localId);
+		if (chosen.sendPreview) {
+			const auto request = chosen.result->openRequest();
+			if (const auto photo = request.photo()) {
+				sendExistingPhoto(photo, chosen.options);
+			} else if (const auto document = request.document()) {
+				auto messageToSend = Api::MessageToSend(
+					prepareSendAction(chosen.options));
+				sendExistingDocument(
+					document,
+					std::move(messageToSend),
+					localId);
+			}
+
+			chosen.bot->session().recentInlineBots().bump(chosen.bot);
+			_composeControls->clear();
+			finishSending();
+		} else {
+			sendInlineResult(chosen.result, chosen.bot, chosen.options, localId);
+		}
 	}, lifetime());
 
 	_composeControls->jumpToItemRequests(
@@ -1773,10 +1792,17 @@ bool ChatWidget::sendExistingDocument(
 		return false;
 	}
 
-	Api::SendExistingDocument(
-		std::move(messageToSend),
-		document,
-		localId);
+	if (document->hasRemoteLocation()) {
+		Api::SendExistingDocument(
+			std::move(messageToSend),
+			document,
+			localId);
+	} else {
+		Api::SendWebDocument(
+			std::move(messageToSend),
+			document,
+			localId);
+	}
 
 	_composeControls->cancelReplyMessage();
 	finishSending();

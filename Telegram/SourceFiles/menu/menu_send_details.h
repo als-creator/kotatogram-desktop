@@ -18,6 +18,7 @@ enum class Type : uchar {
 	ScheduledToUser, // For "Send when online".
 	Reminder,
 	EditCommentPrice,
+	PreviewOnly,
 };
 
 enum class SpoilerState : uchar {

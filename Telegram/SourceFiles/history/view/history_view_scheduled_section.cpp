@@ -431,7 +431,23 @@ void ScheduledWidget::setupComposeControls() {
 
 	_composeControls->inlineResultChosen(
 	) | rpl::on_next([=](ChatHelpers::InlineChosen chosen) {
-		sendInlineResult(chosen.result, chosen.bot);
+		if (chosen.sendPreview) {
+			const auto request = chosen.result->openRequest();
+			if (const auto photo = request.photo()) {
+				sendExistingPhoto(photo);
+			} else if (const auto document = request.document()) {
+				sendExistingDocument(
+					document,
+					Api::MessageToSend(prepareSendAction(chosen.options)));
+			}
+
+			chosen.bot->session().recentInlineBots().bump(chosen.bot);
+			_composeControls->clear();
+			_composeControls->hidePanelsAnimated();
+			_composeControls->focus();
+		} else {
+			sendInlineResult(chosen.result, chosen.bot);
+		}
 	}, lifetime());
 
 	_composeControls->jumpToItemRequests(

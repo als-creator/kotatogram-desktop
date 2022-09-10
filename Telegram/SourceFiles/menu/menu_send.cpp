@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "menu/menu_checked_action.h"
 
+#include "kotato/kotato_lang.h"
 #include "api/api_common.h"
 #include "base/event_filter.h"
 #include "base/unixtime.h"
@@ -613,6 +614,29 @@ Fn<void(Action, Details)> DefaultCallback(
 	};
 }
 
+Fn<void()> DefaultSilentCallback(Fn<void(Api::SendOptions)> send) {
+	return [=] { send({ .silent = true }); };
+}
+
+Fn<void()> DefaultScheduleCallback(
+		std::shared_ptr<ChatHelpers::Show> show,
+		Details details,
+		Fn<void(Api::SendOptions)> send) {
+	const auto guard = base::make_weak(show->toastParent());
+	return [=] {
+		auto box = HistoryView::PrepareScheduleBox(
+			guard,
+			show,
+			details,
+			send);
+		const auto weak = base::make_weak(box.data());
+		show->showBox(std::move(box));
+		if (const auto strong = weak.get()) {
+			strong->setCloseByOutsideClick(false);
+		}
+	};
+}
+
 FillMenuResult AttachSendMenuEffect(
 		not_null<Ui::PopupMenu*> menu,
 		std::shared_ptr<ChatHelpers::Show> show,
@@ -829,6 +853,38 @@ FillMenuResult FillSendMenu(
 	return FillMenuResult::Prepared;
 }
 
+FillMenuResult FillSendPreviewMenu(
+		not_null<Ui::PopupMenu*> menu,
+		Type type,
+		Fn<void()> defaultSend,
+		Fn<void()> silent,
+		Fn<void()> schedule) {
+	if (!defaultSend && !silent && !schedule) {
+		return FillMenuResult::Skipped;
+	}
+	const auto now = type;
+	if (now == Type::Disabled) {
+		return FillMenuResult::Skipped;
+	}
+
+	if (defaultSend) {
+		menu->addAction(ktr("ktg_send_preview"), defaultSend);
+	}
+	if (type != Type::PreviewOnly) {
+		if (silent && now != Type::Reminder) {
+			menu->addAction(ktr("ktg_send_silent_preview"), silent);
+		}
+		if (schedule && now != Type::SilentOnly) {
+			menu->addAction(
+				(now == Type::Reminder
+					? ktr("ktg_reminder_preview")
+					: ktr("ktg_schedule_preview")),
+				schedule);
+		}
+	}
+	return FillMenuResult::Prepared;
+}
+
 void SetupMenuAndShortcuts(
 		not_null<Ui::RpWidget*> button,
 		std::shared_ptr<ChatHelpers::Show> maybeShow,
@@ -867,7 +923,7 @@ void SetupMenuAndShortcuts(
 		using Command = Shortcuts::Command;
 
 		const auto now = details().type;
-		if (now == Type::Disabled) {
+		if (now == Type::Disabled || now == Type::PreviewOnly) {
 			return;
 		}
 		((now != Type::Reminder)

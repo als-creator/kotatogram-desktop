@@ -1549,7 +1549,22 @@ void HistoryWidget::initTabbedSelector() {
 		}
 		return (data.recipientOverride == _peer);
 	}) | rpl::on_next([=](ChatHelpers::InlineChosen data) {
-		sendInlineResult(data);
+		if (data.sendPreview) {
+			const auto request = data.result->openRequest();
+			if (const auto photo = request.photo()) {
+				sendExistingPhoto(photo, data.options);
+			} else if (const auto document = request.document()) {
+				sendExistingDocument(
+					document,
+					Api::MessageToSend(prepareSendAction(data.options)));
+			}
+
+			session().recentInlineBots().bump(data.bot);
+			clearFieldText();
+			saveCloudDraft();
+		} else {
+			sendInlineResult(data);
+		}
 	}, lifetime());
 
 	selector->contextMenuRequested(
@@ -1981,6 +1996,20 @@ void HistoryWidget::applyInlineBotQuery(UserData *bot, const QString &query) {
 							false,
 							{ .showDrawButton = showDrawButton });
 					}
+				} else if (result.sendPreview) {
+					const auto request = result.result->openRequest();
+					if (const auto photo = request.photo()) {
+						sendExistingPhoto(photo, result.options);
+					} else if (const auto document = request.document()) {
+						sendExistingDocument(
+							document,
+							Api::MessageToSend(
+								prepareSendAction(result.options)));
+					}
+
+					session().recentInlineBots().bump(result.bot);
+					clearFieldText();
+					saveCloudDraft();
 				} else {
 					sendInlineResult(result);
 				}
