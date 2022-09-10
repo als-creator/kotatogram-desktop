@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "history/view/history_view_element.h"
 
+#include "kotato/kotato_lang.h"
 #include "kotato/kotato_settings.h"
 #include "apiwrap.h"
 #include "api/api_transcribes.h"
@@ -724,6 +725,9 @@ QString DateTooltipText(not_null<Element*> view) {
 	}
 	if (const auto stars = item->out() ? item->starsPaid() : 0) {
 		dateText += '\n' + tr::lng_you_paid_stars(tr::now, lt_count, stars);
+	}
+	if (const auto msgId = view->data()->fullId().msg) {
+		dateText += '\n' + ktr("ktg_message_id", {"id", QString::number(msgId.bare)});
 	}
 	return dateText;
 }
