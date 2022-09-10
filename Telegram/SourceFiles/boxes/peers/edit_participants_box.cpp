@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "boxes/peers/edit_participants_box.h"
 
+#include "kotato/kotato_lang.h"
+#include "core/application.h"
 #include "api/api_chat_participants.h"
 #include "boxes/peers/edit_participant_box.h"
 #include "boxes/peers/edit_tag_control.h"
@@ -21,6 +23,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "mtproto/mtproto_config.h"
 #include "apiwrap.h"
 #include "lang/lang_keys.h"
+#include "mainwindow.h"
+#include "mainwidget.h"
 #include "dialogs/dialogs_indexed_list.h"
 #include "data/data_peer_values.h"
 #include "data/data_session.h"
@@ -39,6 +43,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/popup_menu.h"
 #include "ui/text/text_utilities.h"
 #include "info/profile/info_profile_values.h"
+#include "window/window_controller.h"
 #include "window/window_session_controller.h"
 #include "history/history.h"
 #include "history/view/history_view_message.h"
@@ -2033,6 +2038,20 @@ base::unique_qptr<Ui::PopupMenu> ParticipantsBoxController::rowContextMenu(
 				(currentRank.isEmpty()
 					? &st::menuIconTagAdd
 					: &st::menuIconTagEdit));
+		}
+	}
+	if (const auto window = _navigation->parentController()) {
+		if (const auto mainwidget = window->widget()->sessionContent()) {
+			result->addAction(
+				ktr("ktg_context_show_messages_from"),
+				crl::guard(this, [=] {
+					mainwidget->searchMessages(
+						" ",
+						(_peer && !_peer->isUser())
+							? _peer->owner().history(_peer).get()
+							: Dialogs::Key(),
+							participant);
+				}), &st::menuIconSearch);
 		}
 	}
 	if (_role == Role::Kicked) {
