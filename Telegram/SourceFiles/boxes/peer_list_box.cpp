@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "boxes/peer_list_box.h"
 
+#include "kotato/kotato_lang.h"
 #include "kotato/kotato_radius.h"
 #include "history/history.h" // chatListNameSortKey.
 #include "main/session/session_show.h"
@@ -29,6 +30,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "storage/file_download.h"
 #include "data/data_peer_values.h"
 #include "data/data_chat.h"
+#include "data/data_user.h"
 #include "data/data_session.h"
 #include "data/data_changes.h"
 #include "data/stickers/data_custom_emoji.h"
@@ -637,6 +639,8 @@ void PeerListRow::refreshStatus() {
 	if (auto user = peer()->asUser()) {
 		if (!_savedMessagesStatus.isEmpty()) {
 			setStatusText(_savedMessagesStatus);
+		} else if (user->isInaccessible()) {
+			setStatusText(ktr("ktg_user_status_unaccessible"));
 		} else {
 			auto time = base::unixtime::now();
 			setStatusText(Data::OnlineText(user, time));
