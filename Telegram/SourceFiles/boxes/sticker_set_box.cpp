@@ -53,6 +53,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/toast/toast.h"
 #include "ui/vertical_list.h"
 #include "ui/widgets/buttons.h"
+#include "ui/widgets/dropdown_menu.h"
 #include "ui/widgets/fields/input_field.h"
 #include "ui/widgets/gradient_round_button.h"
 #include "ui/widgets/menu/menu_action.h"
@@ -889,6 +890,9 @@ void StickerSetBox::updateButtons() {
 				menu->addAction(std::move(item));
 			});
 		}();
+		const auto moreButton = addTopButton(st::infoTopBarMenu);
+		moreButton->setClickedCallback([=] { showMenu(moreButton.data()); });
+
 		if (_inner->notInstalled()) {
 			if (!_session->premium()
 				&& _session->premiumPossible()
@@ -917,6 +921,7 @@ void StickerSetBox::updateButtons() {
 				addButton(tr::lng_cancel(), [=] { closeBox(); });
 			}
 
+			/*
 			if (!_inner->shortName().isEmpty()) {
 				const auto top = addTopButton(st::infoTopBarMenu);
 				const auto menu = top->lifetime().make_state<
@@ -956,6 +961,7 @@ void StickerSetBox::updateButtons() {
 					return true;
 				});
 			}
+			*/
 		} else if (_inner->official()) {
 			addButton(tr::lng_about_done(), [=] { closeBox(); });
 		} else {
@@ -967,6 +973,7 @@ void StickerSetBox::updateButtons() {
 			addButton(std::move(shareText), std::move(share));
 			addButton(tr::lng_cancel(), [=] { closeBox(); });
 
+			/*
 			if (!_inner->shortName().isEmpty()) {
 				const auto top = addTopButton(st::infoTopBarMenu);
 				const auto archive = [=] {
@@ -1031,11 +1038,70 @@ void StickerSetBox::updateButtons() {
 					return true;
 				});
 			}
+			*/
 		}
 	} else {
 		addButton(tr::lng_cancel(), [=] { closeBox(); });
 	}
 	update();
+}
+
+bool StickerSetBox::showMenu(not_null<Ui::IconButton*> button) {
+	if (_menu) {
+		_menu->hideAnimated(Ui::InnerDropdown::HideOption::IgnoreShow);
+		return true;
+	}
+
+	_menu = base::make_unique_q<Ui::DropdownMenu>(
+		window(),
+		st::dropdownMenuWithIcons);
+	const auto weak = _menu.get();
+	_menu->setHiddenCallback([=] {
+		weak->deleteLater();
+		if (_menu == weak) {
+			button->setForceRippled(false);
+		}
+	});
+	_menu->setShowStartCallback([=] {
+		if (_menu == weak) {
+			button->setForceRippled(true);
+		}
+	});
+	_menu->setHideStartCallback([=] {
+		if (_menu == weak) {
+			button->setForceRippled(false);
+		}
+	});
+	button->installEventFilter(_menu);
+
+	if (!_inner->shortName().isEmpty()) {
+		_menu->addAction(
+			tr::lng_stickers_share_pack(tr::now),
+			[=] { copyStickersLink(); },
+			&st::menuIconShare);
+	}
+
+	if (!_inner->notInstalled()) {
+		const auto archive = [=] {
+			_inner->archiveStickers();
+			closeBox();
+		};
+		_menu->addAction(
+			tr::lng_stickers_archive_pack(tr::now),
+			archive,
+			&st::menuIconArchive);
+	}
+
+	const auto parentTopLeft = window()->mapToGlobal(QPoint());
+	const auto buttonTopLeft = button->mapToGlobal(QPoint());
+	const auto parentRect = QRect(parentTopLeft, window()->size());
+	const auto buttonRect = QRect(buttonTopLeft, button->size());
+	_menu->move(
+		buttonRect.x() + buttonRect.width() - _menu->width() - parentRect.x(),
+		buttonRect.y() + buttonRect.height() - parentRect.y() - style::ConvertScale(18));
+	_menu->showAnimated(Ui::PanelAnimation::Origin::TopRight);
+
+	return true;
 }
 
 void StickerSetBox::resizeEvent(QResizeEvent *e) {
