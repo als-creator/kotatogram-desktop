@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "window/window_peer_menu.h"
 
+#include "kotato/kotato_lang.h"
 #include "kotato/kotato_settings.h"
 #include "base/call_delayed.h"
 #include "menu/menu_check_item.h"
@@ -47,6 +48,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "boxes/peers/prepare_short_info_box.h"
 #include "boxes/share_box.h"
 #include "calls/calls_instance.h"
+#include "kotato/boxes/kotato_unpin_box.h"
+#include "ui/boxes/confirm_box.h"
 #include "inline_bots/bot_attach_web_view.h" // InlineBots::PeerType.
 #include "ui/toast/toast.h"
 #include "ui/text/format_values.h"
@@ -337,6 +340,7 @@ private:
 	void addBotToGroup();
 	void addNewMembers();
 	void addDeleteContact();
+	void addHidePin();
 	void addTTLSubmenu(bool addSeparator);
 	void addSendGift();
 	void addCreateTopic();
@@ -1103,6 +1107,71 @@ void Filler::addDeleteContact() {
 	});
 }
 
+void Filler::addHidePin() {
+	if (!_peer || !_thread) {
+		return;
+	}
+	const auto topicRootId = _thread->topicRootId();
+	const auto monoforumPeerId = _thread->monoforumPeerId();
+	const auto migrated = topicRootId ? nullptr : _peer->migrateFrom();
+	const auto top = Data::ResolveTopPinnedId(
+		_peer,
+		topicRootId,
+		monoforumPeerId,
+		migrated);
+	const auto universal = !top
+		? MsgId(0)
+		: (migrated && !peerIsChannel(top.peer))
+		? (top.msg - ServerMaxMsgId)
+		: top.msg;
+	if (!universal) {
+		return;
+	}
+	const auto hiddenId = _peer->session().settings().hiddenPinnedMessageId(
+		_peer->id,
+		topicRootId,
+		monoforumPeerId);
+
+	if (hiddenId != 0) {
+		_addAction(
+			ktr("ktg_pinned_message_show"),
+			[=, peer = _peer, thread = _thread] {
+				auto &session = peer->session();
+				session.settings().setHiddenPinnedMessageId(
+					peer->id,
+					topicRootId,
+					monoforumPeerId,
+					0);
+				session.saveSettingsDelayed();
+				session.changes().entryUpdated(
+					thread,
+					Data::EntryUpdate::Flag::PinVisible);
+			},
+			&st::menuIconPin);
+
+	} else {
+		_addAction(
+			ktr("ktg_pinned_message_hide"),
+			[=, peer = _peer, thread = _thread] {
+				auto &session = peer->session();
+				if (universal) {
+					session.settings().setHiddenPinnedMessageId(
+						peer->id,
+						topicRootId,
+						monoforumPeerId,
+						universal);
+					session.saveSettingsDelayed();
+					session.changes().entryUpdated(
+						thread,
+						Data::EntryUpdate::Flag::PinVisible);
+				} else {
+					session.api().requestFullPeer(peer);
+				}
+			},
+			&st::menuIconPin);
+	}
+}
+
 void Filler::addDeleteTopic() {
 	if (!_topic || !_topic->canDelete()) {
 		return;
@@ -1788,6 +1857,7 @@ void Filler::fillHistoryActions() {
 	addManageChat();
 	addStoryArchive();
 	addSupportInfo();
+	addHidePin();
 	addBoostChat();
 	addCreatePoll();
 	addCreateTodoList();
@@ -1834,6 +1904,7 @@ void Filler::fillProfileActions() {
 void Filler::fillRepliesActions() {
 	if (_topic) {
 		addInfo();
+		addHidePin();
 		addManageTopic();
 	}
 	addBoostChat();
@@ -3879,7 +3950,8 @@ void PeerMenuAddChannelMembers(
 void ToggleMessagePinned(
 		not_null<Window::SessionNavigation*> navigation,
 		FullMsgId itemId,
-		bool pin) {
+		bool pin,
+		Fn<void()> onHidden) {
 	const auto item = navigation->session().data().message(itemId);
 	if (!item || !item->canPin()) {
 		return;
@@ -3889,24 +3961,12 @@ void ToggleMessagePinned(
 			Box(PinMessageBox, item),
 			Ui::LayerOption::CloseOther);
 	} else {
-		const auto peer = item->history()->peer;
-		const auto session = &peer->session();
-		const auto callback = crl::guard(session, [=](Fn<void()> &&close) {
-			close();
-			session->api().request(MTPmessages_UpdatePinnedMessage(
-				MTP_flags(MTPmessages_UpdatePinnedMessage::Flag::f_unpin),
-				peer->input(),
-				MTP_int(itemId.msg)
-			)).done([=](const MTPUpdates &result) {
-				session->api().applyUpdates(result);
-			}).send();
-		});
 		navigation->parentController()->show(
-			Ui::MakeConfirmBox({
-				.text = tr::lng_pinned_unpin_sure(),
-				.confirmed = callback,
-				.confirmText = tr::lng_pinned_unpin(),
-			}),
+			Box<UnpinMessageBox>(
+				item->history()->peer,
+				item->topicRootId(),
+				item->id,
+				std::move(onHidden)),
 			Ui::LayerOption::CloseOther);
 	}
 }

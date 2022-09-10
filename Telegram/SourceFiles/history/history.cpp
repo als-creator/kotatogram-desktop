@@ -59,6 +59,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "mainwidget.h"
 #include "mainwindow.h"
 #include "main/main_session.h"
+#include "main/main_session_settings.h"
 #include "window/notifications_manager.h"
 #include "window/window_session_controller.h"
 #include "calls/calls_instance.h"

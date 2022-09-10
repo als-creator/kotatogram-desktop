@@ -244,7 +244,8 @@ base::weak_qptr<Ui::BoxContent> ShowSendNowMessagesBox(
 void ToggleMessagePinned(
 	not_null<Window::SessionNavigation*> navigation,
 	FullMsgId itemId,
-	bool pin);
+	bool pin,
+	Fn<void()> onHidden = Fn<void()>());
 void TogglePinnedThread(
 	not_null<Window::SessionController*> controller,
 	not_null<Dialogs::Entry*> entry,

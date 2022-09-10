@@ -699,6 +699,14 @@ void ChatWidget::subscribeToPinnedMessages() {
 		}
 	}, lifetime());
 
+	session().changes().entryUpdates(
+		EntryUpdateFlag::PinVisible
+	) | rpl::on_next([=](const Data::EntryUpdate &update) {
+		if (_pinnedTracker) {
+			checkPinnedBarState();
+		}
+	}, lifetime());
+
 	setupPinnedTracker();
 }
 

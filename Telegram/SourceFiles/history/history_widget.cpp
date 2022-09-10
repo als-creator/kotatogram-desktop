@@ -816,6 +816,14 @@ HistoryWidget::HistoryWidget(
 		}
 	}, lifetime());
 
+	session().changes().entryUpdates(
+		EntryUpdateFlag::PinVisible
+	) | rpl::on_next([=](const Data::EntryUpdate &update) {
+		if (_pinnedTracker) {
+			checkPinnedBarState();
+		}
+	}, lifetime());
+
 	using HistoryUpdateFlag = Data::HistoryUpdate::Flag;
 	session().changes().historyUpdates(
 		HistoryUpdateFlag::MessageSent
@@ -8620,9 +8628,7 @@ void HistoryWidget::checkPinnedBarState() {
 	Expects(_pinnedTracker != nullptr);
 	Expects(_list != nullptr);
 
-	const auto hiddenId = _peer->canPinMessages()
-		? MsgId(0)
-		: session().settings().hiddenPinnedMessageId(_peer->id);
+	const auto hiddenId = session().settings().hiddenPinnedMessageId(_peer->id);
 	const auto currentPinnedId = Data::ResolveTopPinnedId(
 		_peer,
 		MsgId(0), // topicRootId
@@ -8857,7 +8863,11 @@ void HistoryWidget::refreshPinnedBarButton(bool many, HistoryItem *item) {
 	button->clicks(
 	) | rpl::on_next([=] {
 		if (close) {
-			hidePinnedMessage();
+			// if (button->clickModifiers() & Qt::ControlModifier) {
+				// hidePinnedMessage(true);
+			// } else {
+				hidePinnedMessage();
+			// }
 		} else {
 			openSection();
 		}
@@ -9582,21 +9592,25 @@ void HistoryWidget::fillSenderUserpicMenu(
 		Ui::Menu::CreateAddActionCallback(menu));
 }
 
-void HistoryWidget::hidePinnedMessage() {
+void HistoryWidget::hidePinnedMessage(bool force) {
 	Expects(_pinnedBar != nullptr);
 
 	const auto id = _pinnedTracker->currentMessageId();
 	if (!id.message) {
 		return;
 	}
-	if (_peer->canPinMessages()) {
-		Window::ToggleMessagePinned(controller(), id.message, false);
+	const auto callback = [=] {
+		if (_pinnedTracker) {
+			checkPinnedBarState();
+		}
+	};
+	if (_peer->canPinMessages() && !force) {
+		Window::ToggleMessagePinned(
+			controller(),
+			id.message,
+			false,
+			crl::guard(this, callback));
 	} else {
-		const auto callback = [=] {
-			if (_pinnedTracker) {
-				checkPinnedBarState();
-			}
-		};
 		Window::HidePinnedBar(
 			controller(),
 			_peer,
