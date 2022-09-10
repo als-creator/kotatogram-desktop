@@ -68,6 +68,10 @@ public:
 	void hideAnimated();
 	void toggleAnimated();
 
+	void setPreventHover(bool value) {
+		_preventHover = value;
+	}
+
 	~TabbedPanel();
 
 protected:
@@ -129,6 +133,8 @@ private:
 	QPixmap _cache;
 	Ui::Animations::Simple _a_opacity;
 	base::Timer _hideTimer;
+
+	bool _preventHover = false;
 
 };
 
