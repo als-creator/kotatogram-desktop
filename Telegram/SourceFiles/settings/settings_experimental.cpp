@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/settings_experimental.h"
 
+#include "kotato/kotato_lang.h"
 #include "data/components/passkeys.h"
 #include "main/main_session.h"
 #include "ui/boxes/confirm_box.h"
@@ -60,6 +61,18 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace Settings {
 namespace {
 
+// format: { key, { name, description }}
+const std::map<QString, std::pair<QString, QString>> TranslationMap {
+	{ ChatHelpers::kOptionTabbedPanelShowOnClick, {
+		"ktg_experimental_tabbed_panel_by_click",
+		"ktg_experimental_tabbed_panel_by_click_description",
+	}},
+	{ Window::kOptionViewProfileInChatsListContextMenu, {
+		"ktg_experimental_view_profile_context_menu",
+		"ktg_experimental_view_profile_context_menu_description",
+	}},
+};
+
 const auto kOptionsClipboardPrefix = u"tdesktop-flags:"_q;
 
 struct DecodeOptionsResult {
@@ -111,8 +124,16 @@ void AddOption(
 		rpl::producer<> reloadOptionsRequests,
 		rpl::producer<QString> query,
 		Fn<void(const QString&, not_null<QWidget*>)> registerHighlight) {
-	const auto name = option.name().isEmpty() ? option.id() : option.name();
-	const auto &description = option.description();
+	const auto translation = TranslationMap.find(option.id());
+	const auto name = translation != TranslationMap.end()
+			? ktr(translation->second.first)
+			: option.name().isEmpty()
+			? option.id()
+			: option.name();
+	const auto &description = (translation != TranslationMap.end()
+		&& !translation->second.second.isEmpty())
+			? ktr(translation->second.second)
+			: option.description();
 
 	const auto wrap = container->add(
 		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
