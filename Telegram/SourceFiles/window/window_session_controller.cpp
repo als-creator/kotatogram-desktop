@@ -724,6 +724,16 @@ void SessionNavigation::showPeerByLinkResolved(
 		: ShowAtUnreadMsgId;
 
 	const auto &replies = info.repliesInfo;
+	const auto searchQuery = info.searchQuery;
+
+	const auto applySearchQuery = [=] {
+		parentController()->content()->searchMessages(
+			searchQuery + ' ',
+			(peer && !peer->isUser())
+				? peer->owner().history(peer).get()
+				: Dialogs::Key());
+	};
+
 	if (const auto threadId = std::get_if<ThreadId>(&replies)) {
 		const auto history = peer->owner().history(peer);
 		const auto controller = parentController();
@@ -828,6 +838,14 @@ void SessionNavigation::showPeerByLinkResolved(
 		if (bot || peer->isChannel()) {
 			crl::on_main(this, [=] {
 				showPeerHistory(peer, params);
+				if (!searchQuery.isEmpty()) {
+					applySearchQuery();
+				}
+			});
+		} else if (!searchQuery.isEmpty()) {
+			crl::on_main(this, [=] {
+				showPeerHistory(peer, params);
+				applySearchQuery();
 			});
 		} else {
 			showPeerInfo(peer, params);
@@ -846,13 +864,16 @@ void SessionNavigation::showPeerByLinkResolved(
 			crl::on_main(this, [=] {
 				const auto history = peer->owner().history(peer);
 				showPeerHistory(history, params, msgId);
-
-				peer->session().attachWebView().openByUsername(
-					parentController(),
-					Api::SendAction(history),
-					attachBotUsername,
-					info.attachBotToggleCommand.value_or(QString()),
-					info.botAppFullScreen);
+				if (searchQuery.isEmpty()) {
+					peer->session().attachWebView().openByUsername(
+						parentController(),
+						Api::SendAction(history),
+						attachBotUsername,
+						info.attachBotToggleCommand.value_or(QString()),
+						info.botAppFullScreen);
+				} else {
+					applySearchQuery();
+				}
 			});
 		} else if (bot && info.attachBotMainOpen) {
 			const auto startCommand = info.attachBotToggleCommand.value_or(
@@ -916,6 +937,9 @@ void SessionNavigation::showPeerByLinkResolved(
 					}
 				} else {
 					showPeerHistory(peer, params, msgId);
+				}
+				if (!searchQuery.isEmpty()) {
+					applySearchQuery();
 				}
 			});
 		}
