@@ -32,19 +32,7 @@ namespace {
 constexpr auto kMinimalSchedule = TimeId(10);
 
 QString DayString(const QDate &date) {
-	const auto month = Lang::MonthDay(date.month())(tr::now);
-	const auto day = QString::number(date.day());
-	if (date.year() != QDate::currentDate().year()) {
-		return tr::lng_month_day_year(
-			tr::now,
-			lt_month,
-			month,
-			lt_day,
-			day,
-			lt_year,
-			QString::number(date.year()));
-	}
-	return tr::lng_month_day(tr::now, lt_month, month, lt_day, day);
+	return langDayOfMonthFull(date);
 }
 
 QString TimeString(QTime time) {

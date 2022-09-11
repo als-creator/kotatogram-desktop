@@ -168,7 +168,7 @@ void Widget::fillTopBarMenu(const Ui::Menu::MenuCallback &addAction) {
 			.chat = Dialogs::Key(
 				controller()->session().data().history(
 					controller()->key().peer())),
-			.date = QDate::currentDate(),
+			.date = QDateTime::currentDateTime(),
 			.mediaPhoto = (type == Type::Photo),
 			.mediaVideo = (type == Type::Video),
 			.customJump = [=](FullMsgId id, Fn<void()> close) {
