@@ -890,7 +890,8 @@ void FileLoadTask::process(ProcessArgs &&args) {
 			thumbnail = PrepareFileThumbnail(std::move(video->thumbnail));
 		} else if (filemime == u"application/x-tdesktop-theme"_q
 			|| filemime == u"application/x-tgtheme-tdesktop"_q) {
-			goodThumbnail = Window::Theme::GeneratePreview(_content, _filepath);
+			auto langStrings = Window::Theme::CollectStrings();
+			goodThumbnail = Window::Theme::GeneratePreview(_content, _filepath, langStrings);
 			if (!goodThumbnail.isNull()) {
 				QBuffer buffer(&goodThumbnailBytes);
 				goodThumbnail.save(&buffer, "JPG", kThumbnailQuality);
