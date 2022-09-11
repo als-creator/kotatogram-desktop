@@ -586,18 +586,12 @@ void TopBarWidget::paintTopBar(Painter &p) {
 	} else if (folder
 		|| (peer
 			&& (peer->sharedMediaInfo() || peer->isVerifyCodes())
-			&& _activeChat.section != Section::SavedSublist)
-		|| (_activeChat.section == Section::Scheduled)
-		|| (_activeChat.section == Section::Pinned)) {
+			&& _activeChat.section != Section::SavedSublist)) {
 		auto text = (_activeChat.section == Section::Scheduled)
-			? ((peer && peer->isSelf())
-				? tr::lng_reminder_messages(tr::now)
-				: tr::lng_scheduled_messages(tr::now))
-			: (_activeChat.section == Section::Pinned)
-			? _customTitleText
+			? tr::lng_reminder_messages(tr::now)
 			: folder
 			? folder->chatListName()
-			: peer->isSelf()
+			: (peer && peer->isSelf())
 			? tr::lng_saved_messages(tr::now)
 			: peer->isRepliesChat()
 			? tr::lng_replies_messages(tr::now)
@@ -615,25 +609,33 @@ void TopBarWidget::paintTopBar(Painter &p) {
 			(height() - st::historySavedFont->height) / 2,
 			width(),
 			text);
-	} else if (_activeChat.section == Section::Replies) {
+	} else if (_activeChat.section == Section::Replies
+			|| _activeChat.section == Section::Scheduled
+			|| _activeChat.section == Section::Pinned) {
 		p.setPen(st::dialogsNameFg);
-		p.setFont(st::semiboldFont);
-		p.drawTextLeft(
-			nameleft,
-			nametop,
-			width(),
-			tr::lng_manage_discussion_group(tr::now));
+
+		Ui::Text::String textStr;
+		textStr.setText(
+			st::semiboldTextStyle,
+			(_activeChat.section == Section::Replies
+				? tr::lng_manage_discussion_group(tr::now)
+				: history->peer->isSelf()
+				? tr::lng_saved_messages(tr::now)
+				: history->peer->topBarNameText().toString()),
+			Ui::NameTextOptions());
+		textStr.drawElided(p, nameleft, nametop, width());
 
 		p.setFont(st::dialogsTextFont);
 		if (!paintConnectingState(p, statusleft, statustop, width())
-			&& !paintSendAction(
-				p,
-				statusleft,
-				statustop,
-				statuswidth,
-				width(),
-				st::historyStatusFgTyping,
-				now)) {
+			&& (_activeChat.section != Section::Replies
+					|| !paintSendAction(
+					p,
+					statusleft,
+					statustop,
+					statuswidth,
+					width(),
+					st::historyStatusFgTyping,
+					now))) {
 			paintStatus(p, statusleft, statustop, statuswidth, width());
 		}
 	} else if (namePeer) {
