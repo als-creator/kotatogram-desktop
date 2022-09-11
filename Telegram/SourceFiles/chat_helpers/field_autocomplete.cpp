@@ -943,6 +943,10 @@ bool FieldAutocomplete::eventFilter(QObject *obj, QEvent *e) {
 					? _moderateKeyActivateCallback(key)
 					: false;
 			}
+		} else if (ev->modifiers() & Qt::ControlModifier) {
+			if (ev->key() == Qt::Key_Enter || ev->key() == Qt::Key_Return) {
+				return _inner->chooseSelected(ChooseMethod::ByCtrlEnter);
+			}
 		}
 	}
 	return QWidget::eventFilter(obj, e);
@@ -1383,7 +1387,7 @@ bool FieldAutocomplete::Inner::isRemovableMentionRow(int index) const {
 
 void FieldAutocomplete::Inner::mousePressEvent(QMouseEvent *e) {
 	selectByMouse(e->globalPos());
-	if (e->button() == Qt::LeftButton) {
+	if (e->button() == Qt::LeftButton || e->button() == Qt::RightButton) {
 		if (_overDelete
 			&& (_mrows->empty()
 				? (_sel >= 0 && _sel < _hrows->size())
@@ -1420,7 +1424,15 @@ void FieldAutocomplete::Inner::mousePressEvent(QMouseEvent *e) {
 
 			selectByMouse(e->globalPos());
 		} else if (_srows->empty()) {
-			chooseSelected(FieldAutocomplete::ChooseMethod::ByClick);
+			if (e->button() == Qt::LeftButton) {
+				if (e->modifiers() & Qt::ControlModifier) {
+					chooseSelected(FieldAutocomplete::ChooseMethod::ByCtrlClick);
+				} else {
+					chooseSelected(FieldAutocomplete::ChooseMethod::ByClick);
+				}
+			} else if (e->button() == Qt::RightButton) {
+				chooseSelected(FieldAutocomplete::ChooseMethod::ByRightClick);
+			}
 		} else {
 			_down = _sel;
 			_previewTimer.callOnce(QApplication::startDragTime());
@@ -1443,7 +1455,15 @@ void FieldAutocomplete::Inner::mouseReleaseEvent(QMouseEvent *e) {
 
 	if (_sel < 0 || _sel != pressed || _srows->empty()) return;
 
-	chooseSelected(FieldAutocomplete::ChooseMethod::ByClick);
+	if (e->button() == Qt::LeftButton) {
+		if (e->modifiers() & Qt::ControlModifier) {
+			chooseSelected(FieldAutocomplete::ChooseMethod::ByCtrlClick);
+		} else {
+			chooseSelected(FieldAutocomplete::ChooseMethod::ByClick);
+		}
+	} else if (e->button() == Qt::RightButton) {
+		chooseSelected(FieldAutocomplete::ChooseMethod::ByRightClick);
+	}
 }
 
 void FieldAutocomplete::Inner::contextMenuEvent(QContextMenuEvent *e) {

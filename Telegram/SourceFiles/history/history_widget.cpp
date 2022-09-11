@@ -9224,14 +9224,14 @@ void HistoryWidget::mentionUser(PeerData *peer) {
 
 	const auto user = peer->asUser();
 	QString replacement, entityTag;
-	if (user->username.isEmpty()) {
+	if (user->username().isEmpty()) {
 		replacement = user->firstName;
 		if (replacement.isEmpty()) {
-			replacement = user->name;
+			replacement = user->name();
 		}
 		entityTag = PrepareMentionTag(user);
 	} else {
-		replacement = '@' + user->username;
+		replacement = '@' + user->username();
 	}
 	_field->insertTag(replacement, entityTag);
 }
