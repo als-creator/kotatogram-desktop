@@ -56,6 +56,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history_widget.h"
 #include "history/history_drag_area.h"
 #include "history/history_item_helpers.h" // GetErrorForSending.
+#include "history/admin_log/history_admin_log_section.h"
 #include "history/view/media/history_view_media.h"
 #include "history/view/history_view_chat_section.h"
 #include "history/view/history_view_service_message.h"
@@ -2087,6 +2088,11 @@ void MainWidget::showNonPremiumLimitToast(bool download) {
 		.attach = RectPart::Top,
 		.duration = 5 * crl::time(1000),
 	});
+}
+
+bool MainWidget::areRecentActionsOpened() {
+	return _mainSection
+		&& static_cast<AdminLog::Widget*>(_mainSection.data());
 }
 
 bool MainWidget::showBackFromStack(const SectionShow &params) {

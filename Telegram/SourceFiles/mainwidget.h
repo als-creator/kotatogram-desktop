@@ -226,6 +226,7 @@ public:
 
 	void showNonPremiumLimitToast(bool download);
 
+	bool areRecentActionsOpened();
 	void dialogsCancelled();
 	void toggleFiltersMenu(bool value) const;
 

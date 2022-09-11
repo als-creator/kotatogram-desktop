@@ -214,6 +214,11 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 		_sublist,
 		origin);
 
+	if (auto manage = SetupManage(_controller, result.data(), _peer)) {
+		result->add(object_ptr<Ui::BoxContentDivider>(result));
+		result->add(std::move(manage));
+	}
+
 	auto sharedTracker = Ui::MultiSlideTracker();
 	{
 		auto sharedMediaWidget = setupSharedMedia(

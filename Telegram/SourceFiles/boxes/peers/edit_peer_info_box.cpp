@@ -307,6 +307,8 @@ void SaveBoostsUnrestrict(
 	api->registerModifyRequest(key, requestId);
 }
 
+} // namespace
+
 void ShowEditPermissions(
 		not_null<Window::SessionNavigation*> navigation,
 		not_null<PeerData*> peer) {
@@ -2890,9 +2892,6 @@ void Controller::deleteChannel() {
 	//	}
 	}).send();
 }
-
-} // namespace
-
 
 EditPeerInfoBox::EditPeerInfoBox(
 	QWidget*,
