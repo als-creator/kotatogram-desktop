@@ -144,6 +144,7 @@ const auto CommandByName = base::flat_map<QString, Command>{
 	{ qsl("save_draft")        , Command::SaveDraft },
 	{ qsl("jump_to_date")      , Command::JumpToDate },
 	{ qsl("reload_lang")       , Command::ReloadLang },
+	{ qsl("restart_app")       , Command::Restart },
 };
 
 const base::flat_map<Command, QString> &CommandNames() {
