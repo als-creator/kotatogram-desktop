@@ -597,6 +597,7 @@ bool MainWidget::setForwardDraft(
 			.topicRootId = topicRootId,
 			.forward = &items,
 			.ignoreSlowmodeCountdown = true,
+			.isUnquotedForward = draft.options != Data::ForwardOptions::PreserveInfo,
 		});
 	if (error) {
 		Data::ShowSendErrorToast(_controller, history->peer, error);

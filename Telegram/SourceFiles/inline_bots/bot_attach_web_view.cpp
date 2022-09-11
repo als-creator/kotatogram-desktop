@@ -1715,7 +1715,9 @@ void WebViewInstance::botHandleMenuButton(
 		if (!_panel || !itemId) {
 			return;
 		} else if (const auto item = _session->data().message(itemId)) {
-			FastShareMessage(uiShow(), item);
+			if (const auto controller = _context.controller.get()) {
+				FastShareMessage(controller, item);
+			}
 		} else {
 			_panel->showToast({ tr::lng_message_not_found(tr::now) });
 		}

@@ -297,9 +297,10 @@ void JoinRichMessageChannel(
 			if (!show || !current || !CanShareMarkdownItem(not_null{ current })) {
 				return;
 			}
-			FastShareMessage(
-				Main::MakeSessionShow(show, not_null{ session }),
-				not_null{ current });
+			if (const auto window = session->tryResolveWindow(
+					current->history()->peer)) {
+				FastShareMessage(window, not_null{ current });
+			}
 		};
 	}
 	return options;
@@ -1317,9 +1318,10 @@ void Instance::showRichMessage(
 			if (!show || !current || !CanShareMarkdownItem(not_null{ current })) {
 				return;
 			}
-			FastShareMessage(
-				Main::MakeSessionShow(show, not_null{ session }),
-				not_null{ current });
+			if (const auto window = session->tryResolveWindow(
+					current->history()->peer)) {
+				FastShareMessage(window, not_null{ current });
+			}
 		};
 	}
 

@@ -329,6 +329,10 @@ public:
 		Data::ResolvedForwardDraft &&draft,
 		SendAction action,
 		FnMut<void()> &&successCallback = nullptr);
+	void forwardMessagesUnquoted(
+		Data::ResolvedForwardDraft &&draft,
+		const SendAction &action,
+		FnMut<void()> &&successCallback = nullptr);
 	void shareContact(
 		const QString &phone,
 		const QString &firstName,
@@ -385,7 +389,9 @@ public:
 		SendAction action);
 	void sendMessage(
 		MessageToSend &&message,
-		std::optional<MsgId> localMessageId = std::nullopt);
+		std::optional<MsgId> localMessageId = std::nullopt,
+		Fn<void(const MTPUpdates &, mtpRequestId)> doneCallback = nullptr,
+		bool forwarding = false);
 	void sendBotStart(
 		std::shared_ptr<Ui::Show> show,
 		not_null<UserData*> bot,

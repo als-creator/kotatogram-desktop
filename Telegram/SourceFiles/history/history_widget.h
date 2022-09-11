@@ -333,6 +333,7 @@ protected:
 	void resizeEvent(QResizeEvent *e) override;
 	void keyPressEvent(QKeyEvent *e) override;
 	void mousePressEvent(QMouseEvent *e) override;
+	void contextMenuEvent(QContextMenuEvent *e) override;
 	void paintEvent(QPaintEvent *e) override;
 	void leaveEventHook(QEvent *e) override;
 	void mouseReleaseEvent(QMouseEvent *e) override;
@@ -953,6 +954,7 @@ private:
 
 	SendPaymentHelper _sendPayment;
 
+	base::unique_qptr<Ui::PopupMenu> _menu;
 	rpl::event_stream<> _cancelRequests;
 
 };

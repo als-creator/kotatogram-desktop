@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "data/data_media_types.h"
 
+#include "kotato/kotato_lang.h"
 #include "base/random.h"
 #include "boxes/send_credits_box.h" // CreditsEmoji.
 #include "history/history.h"
@@ -664,6 +665,10 @@ PollData *Media::poll() const {
 }
 
 TodoListData *Media::todolist() const {
+	return nullptr;
+}
+
+const LocationPoint *Media::geoPoint() const {
 	return nullptr;
 }
 
@@ -1683,6 +1688,10 @@ std::unique_ptr<Media> MediaLocation::clone(not_null<HistoryItem*> parent) {
 
 CloudImage *MediaLocation::location() const {
 	return _location;
+}
+
+const LocationPoint *MediaLocation::geoPoint() const {
+	return &_point;
 }
 
 QString MediaLocation::typeString() const {

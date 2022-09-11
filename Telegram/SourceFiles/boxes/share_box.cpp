@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "boxes/share_box.h"
 
+#include "kotato/kotato_lang.h"
+#include "kotato/kotato_settings.h"
 #include "kotato/kotato_radius.h"
 #include "api/api_premium.h"
 #include "base/random.h"
@@ -19,15 +21,15 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/checkbox.h"
 #include "ui/widgets/multi_select.h"
 #include "ui/widgets/scroll_area.h"
-#include "ui/widgets/fields/input_field.h"
+#include "ui/widgets/menu/menu_action.h"
 #include "ui/widgets/popup_menu.h"
+#include "ui/widgets/dropdown_menu.h"
 #include "ui/wrap/slide_wrap.h"
 #include "ui/text/text_options.h"
 #include "ui/text/text_utilities.h"
 #include "ui/painter.h"
 #include "ui/ui_utility.h"
 #include "chat_helpers/message_field.h"
-#include "menu/menu_check_item.h"
 #include "menu/menu_send.h"
 #include "history/history.h"
 #include "history/history_item.h"
@@ -36,6 +38,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/view/history_view_element.h"
 #include "history/view/history_view_context_menu.h" // CopyPostLink.
 #include "settings/sections/settings_premium.h"
+#include "window/window_peer_menu.h"
 #include "window/window_session_controller.h"
 #include "boxes/peer_list_controllers.h"
 #include "chat_helpers/emoji_suggestions_widget.h"
@@ -60,10 +63,51 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_calls.h"
 #include "styles/style_layers.h"
 #include "styles/style_boxes.h"
+#include "styles/style_info.h"
 #include "styles/style_menu_icons.h"
+#include "styles/style_media_player.h"
 
 #include <QtGui/QGuiApplication>
 #include <QtGui/QClipboard>
+
+namespace {
+
+class ForwardOptionItem final : public Ui::Menu::Action {
+public:
+	using Ui::Menu::Action::Action;
+
+	void init(bool checked) {
+		enableMouseSelecting();
+
+		AbstractButton::setDisabled(true);
+
+		_checkView = std::make_unique<Ui::ToggleView>(st::defaultToggle, false);
+		_checkView->checkedChanges(
+		) | rpl::on_next([=](bool checked) {
+			setIcon(checked ? &st::mediaPlayerMenuCheck : nullptr);
+		}, lifetime());
+
+		_checkView->setLocked(checked);
+		_checkView->setChecked(checked, anim::type::normal);
+		AbstractButton::clicks(
+		) | rpl::on_next([=] {
+			if (!_checkView->isLocked()) {
+				_checkView->setChecked(
+					!_checkView->checked(),
+					anim::type::normal);
+			}
+		}, lifetime());
+	}
+
+	not_null<Ui::ToggleView*> checkView() const {
+		return _checkView.get();
+	}
+
+private:
+	std::unique_ptr<Ui::ToggleView> _checkView;
+};
+
+} // namespace
 
 class ShareBox::Inner final : public Ui::RpWidget {
 public:
@@ -74,6 +118,8 @@ public:
 
 	void setPeerSelectedChangedCallback(
 		Fn<void(not_null<Data::Thread*> thread, bool selected)> callback);
+	void setSubmitRequest(Fn<void()> callback);
+	void setGoToChatRequest(Fn<void()> callback);
 	void peerUnselected(not_null<PeerData*> peer);
 
 	[[nodiscard]] std::vector<not_null<Data::Thread*>> selected() const;
@@ -90,6 +136,9 @@ public:
 	void updateFilter(QString filter = QString());
 	[[nodiscard]] bool isFilterEmpty() const;
 	void selectActive();
+	void tryGoToChat();
+	void selectionMade();
+	Fn<void()> goToChatRequest() const;
 
 	rpl::producer<Ui::ScrollToRequest> scrollToRequests() const;
 	rpl::producer<> searchRequests() const;
@@ -190,6 +239,8 @@ private:
 	base::flat_set<not_null<Data::Thread*>> _selected;
 
 	Fn<void(not_null<Data::Thread*>, bool)> _peerSelectedChangedCallback;
+	Fn<void()> _submitRequest;
+	Fn<void()> _goToChatRequest;
 
 	bool _searching = false;
 	QString _lastQuery;
@@ -199,6 +250,7 @@ private:
 	rpl::event_stream<Ui::ScrollToRequest> _scrollToRequests;
 	rpl::event_stream<> _searchRequests;
 
+	bool _hadSelection = false;
 };
 
 ShareBox::ShareBox(QWidget*, Descriptor &&descriptor)
@@ -287,7 +339,33 @@ void ShareBox::prepare() {
 
 	setTitle(_descriptor.titleOverride
 		? std::move(_descriptor.titleOverride)
-		: tr::lng_share_title());
+		: _descriptor.forwardOptions.isShare
+		? tr::lng_share_title()
+		: tr::lng_selected_forward());
+
+	const auto forwardOptions = [] {
+		switch (::Kotato::JsonSettings::GetInt("forward_mode")) {
+			case 1: return Data::ForwardOptions::NoSenderNames;
+			case 2: return Data::ForwardOptions::NoNamesAndCaptions;
+			default: return Data::ForwardOptions::PreserveInfo;
+		}
+	}();
+
+	const auto groupOptions = [] {
+		switch (::Kotato::JsonSettings::GetInt("forward_grouping_mode")) {
+			case 1: return Data::GroupingOptions::RegroupAll;
+			case 2: return Data::GroupingOptions::Separate;
+			default: return Data::GroupingOptions::GroupAsIs;
+		}
+	}();
+
+	_forwardOptions.sendersCount = _descriptor.forwardOptions.sendersCount;
+	_forwardOptions.captionsCount = _descriptor.forwardOptions.captionsCount;
+	_forwardOptions.dropNames = (forwardOptions != Data::ForwardOptions::PreserveInfo);
+	_forwardOptions.dropCaptions = (forwardOptions == Data::ForwardOptions::NoNamesAndCaptions);
+	_groupOptions = groupOptions;
+
+	updateAdditionalTitle();
 
 	_inner = setInnerWidget(
 		object_ptr<Inner>(this, _descriptor, uiShow()),
@@ -314,11 +392,22 @@ void ShareBox::prepare() {
 	});
 	_select->setResizedCallback([=] { updateScrollSkips(); });
 	_select->setSubmittedCallback([=](Qt::KeyboardModifiers modifiers) {
-		if (modifiers.testFlag(Qt::ControlModifier)
+		if ((modifiers.testFlag(Qt::ControlModifier)
+			&& !::Kotato::JsonSettings::GetBool("forward_on_click"))
 			|| modifiers.testFlag(Qt::MetaModifier)) {
 			submit({});
+		} else if (modifiers.testFlag(Qt::ShiftModifier)) {
+			if (_inner->selected().size() == 1 && _inner->goToChatRequest()) {
+				_inner->goToChatRequest()();
+			}
 		} else {
 			_inner->selectActive();
+			if (!modifiers.testFlag(Qt::ControlModifier)
+				|| ::Kotato::JsonSettings::GetBool("forward_on_click")) {
+				_inner->tryGoToChat();
+			} else {
+				_inner->selectionMade();
+			}
 		}
 	});
 	rpl::combine(
@@ -351,6 +440,17 @@ void ShareBox::prepare() {
 			setCloseByOutsideClick(true);
 		}
 	});
+
+	_inner->setSubmitRequest([=] {
+		submit({});
+	});
+
+	if (_descriptor.goToChatCallback) {
+		_inner->setGoToChatRequest([=] {
+			const auto singleChat = _inner->selected().at(0);
+			goToChat(singleChat);
+		});
+	}
 
 	Ui::Emoji::SuggestionsController::Init(
 		getDelegate()->outerContainer(),
@@ -514,6 +614,8 @@ void ShareBox::keyPressEvent(QKeyEvent *e) {
 			_inner->activateSkipPage(contentHeight(), -1);
 		} else if (e->key() == Qt::Key_PageDown) {
 			_inner->activateSkipPage(contentHeight(), 1);
+		} else if (e->key() == Qt::Key_Escape && !_select->getQuery().isEmpty()) {
+			_select->clearQuery();
 		} else {
 			BoxContent::keyPressEvent(e);
 		}
@@ -553,33 +655,6 @@ void ShareBox::showMenu(not_null<Ui::RpWidget*> parent) {
 	}
 	_menu.emplace(parent, st::popupMenuWithIcons);
 
-	if (_descriptor.forwardOptions.show) {
-		auto createView = [&](rpl::producer<QString> &&text, bool checked) {
-			auto item = base::make_unique_q<Menu::ItemWithCheck>(
-				_menu->menu(),
-				st::popupMenuWithIcons.menu,
-				Ui::CreateChild<QAction>(_menu->menu().get()),
-				nullptr,
-				nullptr);
-			std::move(
-				text
-			) | rpl::on_next([action = item->action()](QString text) {
-				action->setText(text);
-			}, item->lifetime());
-			item->init(checked);
-			const auto view = item->checkView();
-			_menu->addAction(std::move(item));
-			return view;
-		};
-		Ui::FillForwardOptions(
-			std::move(createView),
-			_forwardOptions,
-			[=](Ui::ForwardOptions value) { _forwardOptions = value; },
-			_menu->lifetime());
-
-		_menu->addSeparator();
-	}
-
 	using namespace SendMenu;
 	const auto sendAction = crl::guard(this, [=](Action action, Details) {
 		if (action.type == ActionType::Send) {
@@ -615,14 +690,20 @@ void ShareBox::showMenu(not_null<Ui::RpWidget*> parent) {
 
 void ShareBox::createButtons() {
 	clearButtons();
+	if (!_descriptor.forwardOptions.isShare && _descriptor.forwardOptions.show) {
+		const auto moreButton = addTopButton(st::infoTopBarMenu);
+		moreButton->setClickedCallback([=] { showForwardMenu(moreButton.data()); });
+	}
+
 	if (_hasSelected) {
+		if (_descriptor.goToChatCallback && _inner->selected().size() == 1) {
+			const auto singleChat = _inner->selected().at(0);
+			addLeftButton(rktr("ktg_forward_go_to_chat"), [=] { goToChat(singleChat); });
+		}
+
 		const auto send = addButton(tr::lng_share_confirm(), [=] {
 			submit({});
 		});
-		_forwardOptions.sendersCount
-			= _descriptor.forwardOptions.sendersCount;
-		_forwardOptions.captionsCount
-			= _descriptor.forwardOptions.captionsCount;
 
 		send->setAcceptBoth();
 		send->clicks(
@@ -638,6 +719,204 @@ void ShareBox::createButtons() {
 		addButton(_copyLinkText.value(), [=] { copyLink(); });
 	}
 	addButton(tr::lng_cancel(), [=] { closeBox(); });
+}
+
+bool ShareBox::showForwardMenu(not_null<Ui::IconButton*> button) {
+	if (_topMenu) {
+		_topMenu->hideAnimated(Ui::InnerDropdown::HideOption::IgnoreShow);
+		return true;
+	}
+
+	_topMenu = base::make_unique_q<Ui::DropdownMenu>(window());
+	const auto weak = _topMenu.get();
+	_topMenu->setHiddenCallback([=] {
+		weak->deleteLater();
+		if (_topMenu == weak) {
+			button->setForceRippled(false);
+		}
+	});
+	_topMenu->setShowStartCallback([=] {
+		if (_topMenu == weak) {
+			button->setForceRippled(true);
+		}
+	});
+	_topMenu->setHideStartCallback([=] {
+		if (_topMenu == weak) {
+			button->setForceRippled(false);
+		}
+	});
+	button->installEventFilter(_topMenu);
+
+	auto createView = [&](rpl::producer<QString> &&text, bool checked) {
+		auto item = base::make_unique_q<ForwardOptionItem>(
+			_topMenu->menu(),
+			st::popupMenuWithIcons.menu,
+			new QAction(QString(), _topMenu->menu()),
+			nullptr,
+			nullptr);
+		std::move(
+			text
+		) | rpl::on_next([action = item->action()](QString text) {
+			action->setText(text);
+		}, item->lifetime());
+		item->init(checked);
+		const auto view = item->checkView();
+		_topMenu->addAction(std::move(item));
+		return view;
+	};
+
+	const auto forwardOptions = (_forwardOptions.dropCaptions)
+		? Data::ForwardOptions::NoNamesAndCaptions
+		: _forwardOptions.dropNames
+		? Data::ForwardOptions::NoSenderNames
+		: Data::ForwardOptions::PreserveInfo;
+
+	const auto quoted = createView(
+		rktr("ktg_forward_menu_quoted"),
+		forwardOptions == Data::ForwardOptions::PreserveInfo);
+	const auto noNames = createView(
+		rktr("ktg_forward_menu_unquoted"),
+		forwardOptions == Data::ForwardOptions::NoSenderNames);
+	const auto noCaptions = createView(
+		rktr("ktg_forward_menu_uncaptioned"),
+		forwardOptions == Data::ForwardOptions::NoNamesAndCaptions);
+
+	const auto onForwardOptionChange = [=, this](int mode, bool value) {
+		if (value) {
+			quoted->setLocked(mode == 0 && value);
+			noNames->setLocked(mode == 1 && value);
+			noCaptions->setLocked(mode == 2 && value);
+			quoted->setChecked(quoted->isLocked(), anim::type::normal);
+			noNames->setChecked(noNames->isLocked(), anim::type::normal);
+			noCaptions->setChecked(noCaptions->isLocked(), anim::type::normal);
+			_forwardOptions.dropNames = (mode != 0 && value);
+			_forwardOptions.dropCaptions = (mode == 2 && value);
+			if (::Kotato::JsonSettings::GetBool("forward_remember_mode")) {
+				::Kotato::JsonSettings::Set("forward_mode", mode);
+				::Kotato::JsonSettings::Write();
+			}
+			updateAdditionalTitle();
+		}
+	};
+
+	quoted->checkedChanges(
+	) | rpl::on_next([=](bool value) {
+		onForwardOptionChange(0, value);
+	}, _topMenu->lifetime());
+
+	noNames->checkedChanges(
+	) | rpl::on_next([=](bool value) {
+		onForwardOptionChange(1, value);
+	}, _topMenu->lifetime());
+
+	noCaptions->checkedChanges(
+	) | rpl::on_next([=](bool value) {
+		onForwardOptionChange(2, value);
+	}, _topMenu->lifetime());
+
+	if (_descriptor.forwardOptions.hasMedia) {
+		_topMenu->addSeparator();
+
+		const auto groupAsIs = createView(
+			rktr("ktg_forward_menu_default_albums"),
+			_groupOptions == Data::GroupingOptions::GroupAsIs);
+		const auto groupAll = createView(
+			rktr("ktg_forward_menu_group_all_media"),
+			_groupOptions == Data::GroupingOptions::RegroupAll);
+		const auto groupNone = createView(
+			rktr("ktg_forward_menu_separate_messages"),
+			_groupOptions == Data::GroupingOptions::Separate);
+
+		const auto onGroupOptionChange = [=, this](int mode, bool value) {
+			if (value) {
+				groupAsIs->setLocked(mode == 0 && value);
+				groupAll->setLocked(mode == 1 && value);
+				groupNone->setLocked(mode == 2 && value);
+				groupAsIs->setChecked(groupAsIs->isLocked(), anim::type::normal);
+				groupAll->setChecked(groupAll->isLocked(), anim::type::normal);
+				groupNone->setChecked(groupNone->isLocked(), anim::type::normal);
+				_groupOptions = (mode == 2)
+						? Data::GroupingOptions::Separate
+						: (mode == 1)
+						? Data::GroupingOptions::RegroupAll
+						: Data::GroupingOptions::GroupAsIs;
+				if (::Kotato::JsonSettings::GetBool("forward_remember_mode")) {
+					::Kotato::JsonSettings::Set("forward_grouping_mode", mode);
+					::Kotato::JsonSettings::Write();
+				}
+				updateAdditionalTitle();
+			}
+		};
+
+		groupAsIs->checkedChanges(
+		) | rpl::on_next([=](bool value) {
+			onGroupOptionChange(0, value);
+		}, _topMenu->lifetime());
+
+		groupAll->checkedChanges(
+		) | rpl::on_next([=](bool value) {
+			onGroupOptionChange(1, value);
+		}, _topMenu->lifetime());
+
+		groupNone->checkedChanges(
+		) | rpl::on_next([=](bool value) {
+			onGroupOptionChange(2, value);
+		}, _topMenu->lifetime());
+	}
+
+	const auto parentTopLeft = window()->mapToGlobal(QPoint());
+	const auto buttonTopLeft = button->mapToGlobal(QPoint());
+	const auto parentRect = QRect(parentTopLeft, window()->size());
+	const auto buttonRect = QRect(buttonTopLeft, button->size());
+	_topMenu->move(
+		buttonRect.x() + buttonRect.width() - _topMenu->width() - parentRect.x(),
+		buttonRect.y() + buttonRect.height() - parentRect.y() - style::ConvertScale(18));
+	_topMenu->showAnimated(Ui::PanelAnimation::Origin::TopRight);
+
+	return true;
+}
+
+void ShareBox::updateAdditionalTitle() {
+	if (!_descriptor.forwardOptions.show || _descriptor.forwardOptions.isShare) {
+		return;
+	}
+
+	QString result;
+
+	const auto forwardOptions = (_forwardOptions.dropCaptions)
+		? Data::ForwardOptions::NoNamesAndCaptions
+		: _forwardOptions.dropNames
+		? Data::ForwardOptions::NoSenderNames
+		: Data::ForwardOptions::PreserveInfo;
+
+	switch (forwardOptions) {
+		case Data::ForwardOptions::NoSenderNames:
+			result += ktr("ktg_forward_subtitle_unquoted");
+			break;
+
+		case Data::ForwardOptions::NoNamesAndCaptions:
+			result += ktr("ktg_forward_subtitle_uncaptioned");
+			break;
+	}
+
+	if (_descriptor.forwardOptions.hasMedia
+		&& _groupOptions != Data::GroupingOptions::GroupAsIs) {
+		if (!result.isEmpty()) {
+			result += ", ";
+		}
+
+		switch (_groupOptions) {
+			case Data::GroupingOptions::RegroupAll:
+				result += ktr("ktg_forward_subtitle_group_all_media");
+				break;
+
+			case Data::GroupingOptions::Separate:
+				result += ktr("ktg_forward_subtitle_separate_messages");
+				break;
+		}
+	}
+
+	setAdditionalTitle(rpl::single(result));
 }
 
 void ShareBox::applyFilterUpdate(const QString &query) {
@@ -761,7 +1040,8 @@ void ShareBox::submit(Api::SendOptions options) {
 			checkPaid,
 			std::move(comment),
 			options,
-			forwardOptions);
+			forwardOptions,
+			_groupOptions);
 	}
 }
 
@@ -771,15 +1051,30 @@ void ShareBox::copyLink() const {
 	}
 }
 
+void ShareBox::goToChat(not_null<Data::Thread*> thread) {
+	if (_descriptor.goToChatCallback) {
+		const auto forwardOptions = (_forwardOptions.captionsCount
+			&& _forwardOptions.dropCaptions)
+			? Data::ForwardOptions::NoNamesAndCaptions
+			: _forwardOptions.dropNames
+			? Data::ForwardOptions::NoSenderNames
+			: Data::ForwardOptions::PreserveInfo;
+		_descriptor.goToChatCallback(
+			thread,
+			forwardOptions,
+			_groupOptions);
+	}
+}
+
 void ShareBox::selectedChanged() {
 	auto hasSelected = _inner->hasSelected();
 	if (_hasSelected != hasSelected) {
 		_hasSelected = hasSelected;
-		createButtons();
 		_comment->toggle(_hasSelected, anim::type::normal);
 		_comment->resizeToWidth(st::boxWideWidth);
 	}
 	computeStarsCount();
+	createButtons();
 	update();
 }
 
@@ -1342,11 +1637,35 @@ void ShareBox::Inner::mousePressEvent(QMouseEvent *e) {
 	if (e->button() == Qt::LeftButton) {
 		updateUpon(e->pos());
 		changeCheckState(getChatAtIndex(_upon));
+		if (!e->modifiers().testFlag(Qt::ControlModifier)) {
+			tryGoToChat();
+		} else {
+			selectionMade();
+		}
 	}
 }
 
 void ShareBox::Inner::selectActive() {
 	changeCheckState(getChatAtIndex(_active > 0 ? _active : 0));
+}
+
+void ShareBox::Inner::tryGoToChat() {
+	if (!_hadSelection
+		&& _selected.size() == 1) {
+		if (_submitRequest && _selected.front()->peer()->isSelf()) {
+			_submitRequest();
+		} else if (_goToChatRequest
+			&& ::Kotato::JsonSettings::GetBool("forward_on_click")) {
+			_goToChatRequest();
+		}
+		_hadSelection = true;
+	}
+}
+
+void ShareBox::Inner::selectionMade() {
+	 if (!_hadSelection) {
+		_hadSelection = true;
+	}
 }
 
 void ShareBox::Inner::resizeEvent(QResizeEvent *e) {
@@ -1495,6 +1814,14 @@ void ShareBox::Inner::setPeerSelectedChangedCallback(
 	_peerSelectedChangedCallback = std::move(callback);
 }
 
+void ShareBox::Inner::setSubmitRequest(Fn<void()> callback) {
+	_submitRequest = std::move(callback);
+}
+
+void ShareBox::Inner::setGoToChatRequest(Fn<void()> callback) {
+	_goToChatRequest = std::move(callback);
+}
+
 void ShareBox::Inner::changePeerCheckState(
 		not_null<Chat*> chat,
 		bool checked,
@@ -1525,6 +1852,10 @@ void ShareBox::Inner::changePeerCheckState(
 
 bool ShareBox::Inner::hasSelected() const {
 	return _selected.size();
+}
+
+Fn<void()> ShareBox::Inner::goToChatRequest() const {
+	return _goToChatRequest;
 }
 
 void ShareBox::Inner::updateFilter(QString filter) {
@@ -1689,6 +2020,21 @@ ShareBox::SubmitCallback ShareBox::DefaultForwardCallback(
 		not_null<History*> history,
 		MessageIdsList msgIds,
 		std::optional<TimeId> videoTimestamp) {
+	return [=](
+			std::vector<not_null<Data::Thread*>> &&result,
+			Fn<bool()> checkPaid,
+			TextWithTags &&comment,
+			Api::SendOptions options,
+			Data::ForwardOptions forwardOptions,
+			Data::GroupingOptions groupingOptions) {
+		const auto window = history->session().tryResolveWindow();
+		if (window) {
+			Window::ShowForwardMessagesBox(
+				window,
+				Data::ForwardDraft{ msgIds, forwardOptions, groupingOptions });
+		}
+	};
+	/*
 	struct State final {
 		base::flat_set<mtpRequestId> requests;
 		mtpRequestId nextRequestKey = 0;
@@ -1931,6 +2277,7 @@ ShareBox::SubmitCallback ShareBox::DefaultForwardCallback(
 			}
 		}
 	};
+	*/
 }
 
 ShareBoxStyleOverrides DarkShareBoxStyle() {
@@ -1962,13 +2309,16 @@ ShareBoxStyleOverrides DarkShareBoxStyle() {
 }
 
 void FastShareMessage(
-		std::shared_ptr<Main::SessionShow> show,
+		std::shared_ptr<ChatHelpers::Show> show,
 		not_null<HistoryItem*> item,
 		ShareBoxStyleOverrides st) {
 	const auto history = item->history();
 	const auto owner = &history->owner();
-	const auto session = &history->session();
 	const auto msgIds = owner->itemOrItsGroup(item);
+	Window::ShowForwardMessagesBox(
+		std::move(show),
+		Data::ForwardDraft{ .ids = msgIds });
+#if 0
 	const auto isGame = item->getMessageBot()
 		&& item->media()
 		&& (item->media()->game() != nullptr);
@@ -2048,6 +2398,7 @@ void FastShareMessage(
 		},
 		.moneyRestrictionError = ShareMessageMoneyRestrictionError(),
 	}), Ui::LayerOption::CloseOther);
+#endif
 }
 
 void FastShareMessageToSelf(
@@ -2113,7 +2464,8 @@ void FastShareLink(
 			Fn<bool()> checkPaid,
 			TextWithTags &&comment,
 			Api::SendOptions options,
-			::Data::ForwardOptions) {
+			::Data::ForwardOptions,
+			::Data::GroupingOptions) {
 		if (*sending || result.empty()) {
 			return;
 		}
