@@ -145,6 +145,12 @@ const auto CommandByName = base::flat_map<QString, Command>{
 	{ qsl("jump_to_date")      , Command::JumpToDate },
 	{ qsl("reload_lang")       , Command::ReloadLang },
 	{ qsl("restart_app")       , Command::Restart },
+
+	{ qsl("pinned_1")          , Command::ChatPinned1 },
+	{ qsl("pinned_2")          , Command::ChatPinned2 },
+	{ qsl("pinned_3")          , Command::ChatPinned3 },
+	{ qsl("pinned_4")          , Command::ChatPinned4 },
+	{ qsl("pinned_5")          , Command::ChatPinned5 },
 };
 
 const base::flat_map<Command, QString> &CommandNames() {
