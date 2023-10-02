@@ -409,6 +409,14 @@ InnerWidget::InnerWidget(
 		refreshWithCollapsedRows();
 	}, lifetime());
 
+	rpl::merge(
+		::Kotato::JsonSettings::Events("userpic_corner_radius"),
+		::Kotato::JsonSettings::Events("userpic_corner_radius_forum"),
+		::Kotato::JsonSettings::Events("userpic_corner_radius_forum_use_default")
+	) | rpl::on_next([=] {
+		update();
+	}, lifetime());
+
 	session().data().chatsFilters().tagsEnabledValue(
 	) | rpl::on_next([=](bool tags) {
 		_handleChatListEntryTagRefreshesLifetime.destroy();

@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "dialogs/ui/top_peers_strip.h"
 
+#include "kotato/kotato_settings.h"
 #include "base/event_filter.h"
 #include "lang/lang_keys.h"
 #include "ui/effects/ripple_animation.h"
@@ -69,6 +70,17 @@ TopPeersStrip::TopPeersStrip(
 		_expanded.value()
 	) | rpl::on_next([=] {
 		resizeToWidth(width());
+	}, _strip.lifetime());
+
+	rpl::merge(
+		::Kotato::JsonSettings::Events("userpic_corner_radius"),
+		::Kotato::JsonSettings::Events("userpic_corner_radius_forum"),
+		::Kotato::JsonSettings::Events("userpic_corner_radius_forum_use_default")
+	) | rpl::on_next([=] {
+		for (auto &entry : _entries) {
+			entry.userpicFrameDirty = 1;
+		}
+		_strip.update();
 	}, _strip.lifetime());
 
 	resize(0, _header.height() + _strip.height());

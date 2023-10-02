@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "boxes/peer_list_box.h"
 
+#include "kotato/kotato_radius.h"
 #include "history/history.h" // chatListNameSortKey.
 #include "main/session/session_show.h"
 #include "main/main_session.h"
@@ -980,12 +981,13 @@ void PeerListRow::paintDisabledCheckUserpic(
 
 		p.setPen(userpicBorderPen);
 		p.setBrush(Qt::NoBrush);
-		if (peer()->forum()) {
-			const auto radius = userpicDiameter
-				* Ui::ForumUserpicRadiusMultiplier();
-			p.drawRoundedRect(userpicEllipse, radius, radius);
-		} else {
+		const auto userpicRadius = Kotato::UserpicRadius(
+			peer()->forum() != nullptr);
+		if (userpicRadius >= 0.5) {
 			p.drawEllipse(userpicEllipse);
+		} else {
+			const auto radius = userpicDiameter * userpicRadius;
+			p.drawRoundedRect(userpicEllipse, radius, radius);
 		}
 
 		p.setPen(iconBorderPen);
@@ -1021,9 +1023,7 @@ void PeerListRow::createCheckbox(
 		const style::RoundImageCheckbox &st,
 		Fn<void()> updateCallback) {
 	const auto generateRadius = [=](int size) {
-		return useForumLikeUserpic()
-			? int(size * Ui::ForumUserpicRadiusMultiplier())
-			: std::optional<int>();
+		return int(size * Kotato::UserpicRadius(useForumLikeUserpic()));
 	};
 	_checkbox = std::make_unique<Ui::RoundImageCheckbox>(
 		st,

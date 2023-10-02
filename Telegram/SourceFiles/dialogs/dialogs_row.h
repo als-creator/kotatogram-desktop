@@ -183,6 +183,7 @@ private:
 		QImage frame;
 		QImage cacheTTL;
 		int frameIndex = -1;
+		float64 userpicRadius = 0.;
 		uint32 paletteVersion : 16 = 0;
 		uint32 storiesCount : 7 = 0;
 		uint32 storiesUnreadCount : 7 = 0;

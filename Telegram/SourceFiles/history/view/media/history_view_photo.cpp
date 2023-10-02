@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/view/media/history_view_photo.h"
 
 #include "kotato/kotato_settings.h"
+#include "kotato/kotato_radius.h"
 #include "boxes/send_credits_box.h"
 #include "history/history_item_components.h"
 #include "history/history_item.h"
@@ -626,9 +627,10 @@ void Photo::paintUserpicFrame(
 		const auto ratio = style::DevicePixelRatio();
 		auto request = ::Media::Streaming::FrameRequest();
 		request.outer = request.resize = size * ratio;
-		if (forum) {
+		const auto radiusOption = ::Kotato::UserpicRadius(forum);
+		if (radiusOption < 0.5) {
 			const auto radius = int(std::min(size.width(), size.height())
-				* Ui::ForumUserpicRadiusMultiplier());
+				* radiusOption);
 			if (_streamed->roundingCorners[0].width() != radius * ratio) {
 				_streamed->roundingCorners = Images::CornersMask(radius);
 			}

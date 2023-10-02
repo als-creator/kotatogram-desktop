@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "ui/userpic_view.h"
 
+#include "kotato/kotato_radius.h"
 #include "ui/empty_userpic.h"
 #include "ui/painter.h"
 #include "ui/image/image_prepare.h"
@@ -29,10 +30,12 @@ void ValidateUserpicCache(
 		PeerUserpicShape shape) {
 	Expects(cloud != nullptr || empty != nullptr);
 
+	const auto radius = Kotato::UserpicRadius(shape == PeerUserpicShape::Forum);
 	const auto full = QSize(size, size);
 	const auto version = style::PaletteVersion();
 	const auto shapeValue = static_cast<uint32>(shape) & 3;
 	const auto regenerate = (view.cached.size() != QSize(size, size))
+		|| (view.radius != radius)
 		|| (view.shape != shapeValue)
 		|| (cloud && !view.empty.null())
 		|| (empty && empty != view.empty.get())
@@ -51,14 +54,14 @@ void ValidateUserpicCache(
 			Qt::SmoothTransformation);
 		if (shape == PeerUserpicShape::Monoforum) {
 			view.cached = Ui::ApplyMonoforumShape(std::move(view.cached));
-		} else if (shape == PeerUserpicShape::Forum) {
+		} else if (radius >= 0.5) {
+			view.cached = Images::Circle(std::move(view.cached));
+		} else if (radius) {
 			view.cached = Images::Round(
 				std::move(view.cached),
 				Images::CornersMask(size
-					* Ui::ForumUserpicRadiusMultiplier()
+					* radius
 					/ style::DevicePixelRatio()));
-		} else {
-			view.cached = Images::Circle(std::move(view.cached));
 		}
 	} else {
 		if (view.cached.size() != full) {
@@ -69,16 +72,23 @@ void ValidateUserpicCache(
 		auto p = QPainter(&view.cached);
 		if (shape == PeerUserpicShape::Monoforum) {
 			empty->paintMonoforum(p, 0, 0, size, size);
-		} else if (shape == PeerUserpicShape::Forum) {
+		} else if (radius >= 0.5) {
+			empty->paintCircle(p, 0, 0, size, size);
+		} else if (radius) {
 			empty->paintRounded(
 				p,
 				0,
 				0,
 				size,
 				size,
-				size * Ui::ForumUserpicRadiusMultiplier());
+				size * radius);
 		} else {
-			empty->paintCircle(p, 0, 0, size, size);
+			empty->paintSquare(
+				p,
+				0,
+				0,
+				size,
+				size);
 		}
 	}
 }

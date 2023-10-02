@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "dialogs/dialogs_row.h"
 
+#include "kotato/kotato_radius.h"
 #include "kotato/kotato_settings.h"
 #include "ui/chat/chat_theme.h" // CountAverageColor.
 #include "ui/color_contrast.h"
@@ -468,6 +469,8 @@ void Row::PaintCornerBadgeFrame(
 			const auto radius = context.st->photoSize
 				* Ui::ForumUserpicRadiusMultiplier();
 			Ui::PaintOutlineSegments(q, outline, radius, segments);
+		} else if (const auto r = Kotato::UserpicRadius(); r < 0.5) {
+			Ui::PaintOutlineSegments(q, outline, photoSize * r, segments);
 		} else {
 			Ui::PaintOutlineSegments(q, outline, segments);
 		}
@@ -522,7 +525,7 @@ void Row::PaintCornerBadgeFrame(
 		: st::dialogsCallBadgeSize;
 	const auto stroke = st::dialogsOnlineBadgeStroke;
 	const auto skip = online
-		? st::dialogsOnlineBadgeSkip
+		? Kotato::UserpicOnlineBadgeSkip()
 		: st::dialogsCallBadgeSkip;
 	const auto shrink = (size / 2) * (1. - topLayerProgress);
 
@@ -617,6 +620,8 @@ void Row::paintUserpic(
 	const auto frameIndex = videoUserpic ? videoUserpic->frameIndex() : -1;
 	const auto paletteVersionReal = style::PaletteVersion();
 	const auto paletteVersion = (paletteVersionReal & ((1 << 17) - 1));
+	const auto userpicRadius = ::Kotato::UserpicRadius(peer
+		&& peer->userpicShape() == Ui::PeerUserpicShape::Forum);
 	const auto active = context.active ? 1 : 0;
 	const auto keyChanged = (_cornerBadgeUserpic->key != key)
 		|| (_cornerBadgeUserpic->paletteVersion != paletteVersion);
@@ -627,6 +632,7 @@ void Row::paintUserpic(
 		peer ? peer->asChannel() : nullptr);
 	if (keyChanged
 		|| frameSizeChanged
+		|| _cornerBadgeUserpic->userpicRadius != userpicRadius
 		|| !_cornerBadgeUserpic->layersManager.isFinished()
 		|| _cornerBadgeUserpic->active != active
 		|| _cornerBadgeUserpic->frameIndex != frameIndex
@@ -636,6 +642,7 @@ void Row::paintUserpic(
 		|| videoUserpic) {
 		_cornerBadgeUserpic->key = key;
 		_cornerBadgeUserpic->paletteVersion = paletteVersion;
+		_cornerBadgeUserpic->userpicRadius = userpicRadius;
 		_cornerBadgeUserpic->active = active;
 		_cornerBadgeUserpic->storiesCount = storiesCount;
 		_cornerBadgeUserpic->storiesUnreadCount = storiesUnreadCount;

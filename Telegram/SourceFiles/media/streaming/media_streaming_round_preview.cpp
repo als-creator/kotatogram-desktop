@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "media/streaming/media_streaming_round_preview.h"
 
+#include "kotato/kotato_radius.h"
+
 namespace Media::Streaming {
 
 RoundPreview::RoundPreview(const QByteArray &bytes, int size)
@@ -29,7 +31,7 @@ QImage RoundPreview::image(int size) {
 	return _reader->current({
 		.frame = QSize(_size, _size),
 		.factor = style::DevicePixelRatio(),
-		.radius = ImageRoundRadius::Ellipse,
+		.radius = Kotato::UserpicRadius(),
 	}, crl::now());
 }
 
@@ -46,7 +48,7 @@ void RoundPreview::clipCallback(Clip::Notification notification) {
 			_reader->start({
 				.frame = QSize(_size, _size),
 				.factor = style::DevicePixelRatio(),
-				.radius = ImageRoundRadius::Ellipse,
+				.radius = Kotato::UserpicRadius(),
 			});
 		}
 	} break;

@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "ui/controls/userpic_button.h"
 
+#include "kotato/kotato_radius.h"
 #include "apiwrap.h"
 #include "api/api_peer_photo.h"
 #include "ui/effects/upload_progress_overlay.h"
@@ -147,7 +148,7 @@ void SetupSubButtonBackground(
 		auto hq = PainterHighQualityEnabler(p);
 		p.setBrush(st::boxBg);
 		p.setPen(Qt::NoPen);
-		p.drawEllipse(background->rect());
+		Kotato::DrawUserpicShape(p, background->rect(), background->rect().width());
 	}, background->lifetime());
 
 	upload->positionValue(
@@ -706,10 +707,10 @@ void UserpicButton::paintUserpicFrame(Painter &p, QPoint photoPosition) {
 		auto size = QSize{ _st.photoSize, _st.photoSize };
 		const auto ratio = style::DevicePixelRatio();
 		request.outer = request.resize = size * ratio;
+		const auto radiusOption = Kotato::UserpicRadius(useForumShape());
 		if (_shape == PeerUserpicShape::Monoforum) {
-		} else if (useForumShape()) {
-			const auto radius = int(_st.photoSize
-				* Ui::ForumUserpicRadiusMultiplier());
+		} else if (radiusOption < 0.5) {
+			const auto radius = int(_st.photoSize * radiusOption);
 			if (_roundingCorners[0].width() != radius * ratio) {
 				_roundingCorners = Images::CornersMask(radius);
 			}
@@ -1107,12 +1108,16 @@ void UserpicButton::showCustom(QImage &&image) {
 			size * style::DevicePixelRatio(),
 			Qt::IgnoreAspectRatio,
 			Qt::SmoothTransformation);
-		_userpic = Ui::PixmapFromImage(useForumShape()
-			? Images::Round(
+		const auto radiusOption = Kotato::UserpicRadius(useForumShape());
+		if (radiusOption == 0.) {
+			_userpic = Ui::PixmapFromImage(std::move(small));
+		} else if (radiusOption < 0.5) {
+			_userpic = Ui::PixmapFromImage(Images::Round(
 				std::move(small),
-				Images::CornersMask(_st.photoSize
-					* Ui::ForumUserpicRadiusMultiplier()))
-			: Images::Circle(std::move(small)));
+				Images::CornersMask(_st.photoSize * radiusOption)));
+		} else {
+			_userpic = Ui::PixmapFromImage(Images::Circle(std::move(small)));
+		}
 	} else {
 		_userpic = CreateSquarePixmap(_st.photoSize, [&](Painter &p) {
 			fillShape(p, CreateDefaultGradientBrush(_st.photoSize));
@@ -1195,8 +1200,9 @@ void UserpicButton::fillShape(QPainter &p, QBrush brush) const {
 	p.setPen(Qt::NoPen);
 	p.setBrush(brush);
 	const auto size = _st.photoSize;
-	if (useForumShape()) {
-		const auto radius = size * Ui::ForumUserpicRadiusMultiplier();
+	const auto radiusOption = Kotato::UserpicRadius(useForumShape());
+	if (radiusOption < 0.5) {
+		const auto radius = size * radiusOption;
 		p.drawRoundedRect(0, 0, size, size, radius, radius);
 	} else {
 		p.drawEllipse(0, 0, size, size);
@@ -1231,12 +1237,15 @@ void UserpicButton::prepareUserpicPixmap() {
 						QSize(size, size) * ratio,
 						Qt::IgnoreAspectRatio,
 						Qt::SmoothTransformation);
-					image = useForumShape()
-						? Images::Round(
+					const auto radiusOption = Kotato::UserpicRadius(
+						useForumShape());
+					if (radiusOption >= 0.5) {
+						image = Images::Circle(std::move(image));
+					} else if (radiusOption) {
+						image = Images::Round(
 							std::move(image),
-							Images::CornersMask(size
-								* Ui::ForumUserpicRadiusMultiplier()))
-						: Images::Circle(std::move(image));
+							Images::CornersMask(size * radiusOption));
+					}
 					image.setDevicePixelRatio(style::DevicePixelRatio());
 					p.drawImage(0, 0, image);
 				}
@@ -1247,14 +1256,18 @@ void UserpicButton::prepareUserpicPixmap() {
 					((user && user->isInaccessible())
 						? Ui::EmptyUserpic::InaccessibleName()
 						: _peer->name()));
-				if (useForumShape()) {
+				const auto radiusOption = Kotato::UserpicRadius(
+					useForumShape());
+				if (radiusOption == 0.) {
+					empty.paintSquare(p, 0, 0, size, size);
+				} else if (radiusOption < 0.5) {
 					empty.paintRounded(
 						p,
 						0,
 						0,
 						size,
 						size,
-						size * Ui::ForumUserpicRadiusMultiplier());
+						size * radiusOption);
 				} else {
 					empty.paintCircle(p, 0, 0, size, size);
 				}

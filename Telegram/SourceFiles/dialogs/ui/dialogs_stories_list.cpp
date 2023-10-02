@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "dialogs/ui/dialogs_stories_list.h"
 
+#include "kotato/kotato_radius.h"
+#include "kotato/kotato_settings.h"
 #include "base/event_filter.h"
 #include "base/qt_signal_producer.h"
 #include "lang/lang_keys.h"
@@ -86,6 +88,14 @@ List::List(
 
 	setMouseTracking(true);
 	resize(0, _data.empty() ? 0 : st.full.height);
+
+	rpl::merge(
+		::Kotato::JsonSettings::Events("userpic_corner_radius"),
+		::Kotato::JsonSettings::Events("userpic_corner_radius_forum"),
+		::Kotato::JsonSettings::Events("userpic_corner_radius_forum_use_default")
+	) | rpl::on_next([=] {
+		update();
+	}, lifetime());
 }
 
 List::~List() = default;
@@ -564,14 +574,31 @@ void List::paint(
 					p.setPen(QPen(gradient, line));
 				}
 				p.setBrush(Qt::NoBrush);
-				p.drawEllipse(outer);
+				if (const auto r = Kotato::UserpicRadius(); r >= 0.5) {
+					p.drawEllipse(outer);
+				} else if (r) {
+					p.drawRoundedRect(
+						outer,
+						outer.width() * r,
+						outer.width() * r);
+				} else {
+					p.drawRect(outer);
+				}
 			} else {
 				validateSegments(itemFull, gradient, line, true);
-				Ui::PaintOutlineSegments(
-					p,
-					outer,
-					itemFull->segments,
-					layout.segmentsSpinProgress);
+				if (const auto r = Kotato::UserpicRadius(); r < 0.5) {
+					Ui::PaintOutlineSegments(
+						p,
+						outer,
+						outer.width() * r,
+						itemFull->segments);
+				} else {
+					Ui::PaintOutlineSegments(
+						p,
+						outer,
+						itemFull->segments,
+						layout.segmentsSpinProgress);
+				}
 			}
 		}
 		p.setOpacity(1.);
@@ -609,7 +636,7 @@ void List::paint(
 			p.setCompositionMode(QPainter::CompositionMode_Source);
 			p.setPen(Qt::NoPen);
 			p.setBrush(st::transparent);
-			p.drawEllipse(rect);
+			Kotato::DrawUserpicShape(p, rect, rect.width());
 			p.setCompositionMode(QPainter::CompositionMode_SourceOver);
 		}
 		if (hasReadLine) {
@@ -623,11 +650,19 @@ void List::paint(
 				st::dialogsUnreadBgMuted->b,
 				lineRead,
 				false);
-			Ui::PaintOutlineSegments(
-				p,
-				rect,
-				itemFull->segments,
-				layout.segmentsSpinProgress);
+			if (const auto r = Kotato::UserpicRadius(); r < 0.5) {
+				Ui::PaintOutlineSegments(
+					p,
+					rect,
+					rect.width() * r,
+					itemFull->segments);
+			} else {
+				Ui::PaintOutlineSegments(
+					p,
+					rect,
+					itemFull->segments,
+					layout.segmentsSpinProgress);
+			}
 		}
 
 		// Userpic.

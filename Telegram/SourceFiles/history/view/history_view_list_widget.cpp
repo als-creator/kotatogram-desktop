@@ -509,6 +509,13 @@ ListWidget::ListWidget(
 	::Kotato::JsonSettings::Events(
 		"monospace_large_bubbles"
 	) | rpl::on_next(reinitBubbles, lifetime());
+	rpl::merge(
+		::Kotato::JsonSettings::Events("userpic_corner_radius"),
+		::Kotato::JsonSettings::Events("userpic_corner_radius_forum"),
+		::Kotato::JsonSettings::Events("userpic_corner_radius_forum_use_default")
+	) | rpl::on_next([=] {
+		update();
+	}, lifetime());
 
 	_scrollDateHideTimer.setCallback([this] { scrollDateHideByTimer(); });
 	_session->data().viewRepaintRequest(

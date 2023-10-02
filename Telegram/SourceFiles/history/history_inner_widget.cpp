@@ -419,6 +419,13 @@ HistoryInner::HistoryInner(
 			update();
 		}
 	}, lifetime());
+	rpl::merge(
+		::Kotato::JsonSettings::Events("userpic_corner_radius"),
+		::Kotato::JsonSettings::Events("userpic_corner_radius_forum"),
+		::Kotato::JsonSettings::Events("userpic_corner_radius_forum_use_default")
+	) | rpl::on_next([=] {
+		update();
+	}, lifetime());
 
 	using PlayRequest = ChatHelpers::EmojiInteractionPlayRequest;
 	_controller->emojiInteractions().playRequests(

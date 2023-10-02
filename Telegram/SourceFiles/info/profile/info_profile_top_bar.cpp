@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "info/profile/info_profile_top_bar.h"
 
+#include "kotato/kotato_radius.h"
 #include "api/api_peer_colors.h"
 #include "api/api_peer_photo.h"
 #include "api/api_user_privacy.h"
@@ -2794,7 +2795,16 @@ void TopBar::paintStoryOutline(QPainter &p, const QRect &geometry) {
 		padding + outlineWidth / 2,
 		padding + outlineWidth / 2);
 
-	Ui::PaintOutlineSegments(p, outlineRect, _storySegments);
+	const auto isForum = _peer->forum() || _peer->monoforum();
+	if (const auto r = Kotato::UserpicRadius(isForum); r < 0.5) {
+		Ui::PaintOutlineSegments(
+			p,
+			outlineRect,
+			outlineRect.width() * r,
+			_storySegments);
+	} else {
+		Ui::PaintOutlineSegments(p, outlineRect, _storySegments);
+	}
 
 	if (_hasLiveStories) {
 		const auto outline = _edgeColor.current().value_or(

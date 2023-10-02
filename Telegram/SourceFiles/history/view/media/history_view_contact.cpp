@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "history/view/media/history_view_contact.h"
 
+#include "kotato/kotato_radius.h"
 #include "boxes/add_contact_box.h"
 #include "core/click_handler_types.h" // ClickHandlerContext
 #include "data/data_media_types.h"
@@ -432,7 +433,7 @@ void Contact::draw(Painter &p, const PaintContext &context) const {
 			auto hq = PainterHighQualityEnabler(p);
 			p.setBrush(p.textPalette().selectOverlay);
 			p.setPen(Qt::NoPen);
-			p.drawEllipse(left, top, _pixh, _pixh);
+			Kotato::DrawUserpicShape(p, left, top, _pixh, _pixh, _pixh);
 		}
 	}
 
