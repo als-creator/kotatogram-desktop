@@ -17,6 +17,7 @@
 	"ktg_download_path_default_radio": "Kotatogram folder in system «Downloads»",
 	"ktg_passcode_about": "When a local passcode is set, a lock icon appears at the top of your chats list. Click it to lock the app.\n\nNote: if you forget your local passcode, you'll need to relogin in Kotatogram Desktop.",
 	"ktg_message_unsupported": "This message is not supported by your version of Kotatogram Desktop. Please update to the latest version in Settings, or install it from {link}",
+	"ktg_action_group_migrate": "The group was upgraded to a supergroup",
 	"ktg_bot_share_location_unavailable": "Sorry, location sharing is currently unavailable in Kotatogram Desktop.",
 	"ktg_theme_editor_need_unlock": "You need to unlock Kotatogram to save your theme.",
 	"ktg_no_mic_permission": "Kotatogram needs access to your microphone so that you can make calls and record voice messages.",
