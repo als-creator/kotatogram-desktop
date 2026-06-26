@@ -82,6 +82,16 @@ constexpr auto kNotificationTextLimit = 255;
 constexpr auto kPinnedMessageTextLimit = 16;
 constexpr auto kMinLoginCode = 5;
 
+[[nodiscard]] TextWithEntities GenerateServiceTime(TimeId date) {
+	if (date <= 0) {
+		return {};
+	}
+	return { u" · "_q
+		+ QLocale().toString(
+			base::unixtime::parse(date).time(),
+			QLocale::ShortFormat) };
+}
+
 using ItemPreview = HistoryView::ItemPreview;
 
 template <typename T>
@@ -1413,7 +1423,11 @@ void HistoryItem::setServiceText(PreparedServiceText &&prepared) {
 	_flags &= ~MessageFlag::HasTextLinks;
 	const auto data = Get<HistoryServiceData>();
 	const auto had = !_text.empty();
+	data->cleanText = prepared.text;
 	_text = std::move(prepared.text);
+	if (!_text.empty()) {
+		_text.append(GenerateServiceTime(date()));
+	}
 	data->textLinks = std::move(prepared.links);
 	if (had) {
 		_history->owner().requestItemTextRefresh(this);
@@ -4445,6 +4459,11 @@ TextWithEntities HistoryItem::notificationText(
 		if (_media && !isService()) {
 			return _media->notificationText();
 		} else if (!emptyText()) {
+			if (isService()) {
+				if (const auto data = Get<HistoryServiceData>()) {
+					return data->cleanText;
+				}
+			}
 			return _text;
 		}
 		return TextWithEntities();
