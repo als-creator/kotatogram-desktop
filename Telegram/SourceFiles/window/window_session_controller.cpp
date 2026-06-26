@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "window/window_session_controller.h"
 
+#include "kotato/kotato_settings.h"
 #include "apiwrap.h"
 #include "api/api_cloud_password.h"
 #include "api/api_text_entities.h"
@@ -2488,9 +2489,10 @@ void SessionController::floatPlayerAreaUpdated() {
 }
 
 int SessionController::dialogsSmallColumnWidth() const {
-	return st::defaultDialogRow.padding.left()
-		+ st::defaultDialogRow.photoSize
-		+ st::defaultDialogRow.padding.left();
+	const auto &row = (::Kotato::JsonSettings::GetInt("chat_list_lines") == 1)
+		? st::compactDialogRow
+		: st::defaultDialogRow;
+	return row.padding.left() + row.photoSize + row.padding.left();
 }
 
 int SessionController::minimalThreeColumnWidth() const {

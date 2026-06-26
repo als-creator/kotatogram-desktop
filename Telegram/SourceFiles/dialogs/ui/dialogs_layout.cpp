@@ -116,7 +116,9 @@ int PaintRightButtonImpl(QPainter &p, const PaintContext &context) {
 		const auto left = context.width
 			- size.width()
 			- rightButton->st->margin.right();
-		const auto top = rightButton->st->margin.top();
+		const auto top = (context.st == &st::compactDialogRow)
+			? (context.st->height - size.height()) / 2
+			: rightButton->st->margin.top();
 		p.drawImage(
 			left,
 			top,
@@ -503,6 +505,7 @@ void PaintRow(
 			videoUserpic,
 			context,
 			(context.narrow
+				&& (context.st != &st::compactDialogRow)
 				&& !badgesState.empty()
 				&& !draft
 				&& item
@@ -514,7 +517,10 @@ void PaintRow(
 		PaintExpandedTopicsBar(p, context.topicsExpanded);
 	}
 	if (context.narrow) {
-		if (!draft && item && !item->isEmpty()) {
+		if (!draft
+			&& item
+			&& !item->isEmpty()
+			&& (context.st != &st::compactDialogRow)) {
 			PaintNarrowCounter(p, context, badgesState);
 		}
 		return;
@@ -566,7 +572,21 @@ void PaintRow(
 		}
 	}
 	auto texttop = context.st->textTop;
-	if (const auto folder = entry->asFolder()) {
+	if (context.st == &st::compactDialogRow) {
+		// Compact chat list: single line, no message preview, counter only.
+		// Name shares the line with the counter, so shrink it accordingly.
+		const auto displayPinnedIcon = badgesState.empty()
+			&& entry->isPinnedDialog(context.filter)
+			&& (context.filter || !entry->fixedOnTopIndex());
+		const auto available = PaintWideCounter(
+			p,
+			context,
+			badgesState,
+			texttop,
+			namewidth,
+			displayPinnedIcon);
+		rectForName.setWidth(rectForName.width() - (namewidth - available));
+	} else if (const auto folder = entry->asFolder()) {
 		const auto availableWidth = PaintWideCounter(
 			p,
 			context,

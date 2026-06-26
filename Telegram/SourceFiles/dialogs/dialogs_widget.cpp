@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "dialogs/dialogs_widget.h"
 
 #include "kotato/kotato_lang.h"
+#include "kotato/kotato_settings.h"
 #include "base/call_delayed.h"
 #include "base/qt/qt_key_modifiers.h"
 #include "base/options.h"
@@ -106,6 +107,13 @@ namespace {
 constexpr auto kSearchPerPage = 50;
 constexpr auto kStoriesExpandDuration = crl::time(200);
 constexpr auto kSearchRequestDelay = crl::time(900);
+
+[[nodiscard]] int NarrowWidth() {
+	const auto &row = (::Kotato::JsonSettings::GetInt("chat_list_lines") == 1)
+		? st::compactDialogRow
+		: st::defaultDialogRow;
+	return row.padding.left() + row.photoSize + row.padding.left();
+}
 
 base::options::toggle OptionForumHideChatsList({
 	.id = kOptionForumHideChatsList,
@@ -344,9 +352,7 @@ Widget::Widget(
 , _api(&controller->session().mtp())
 , _chooseByDragTimer([=] { _inner->chooseRow(); })
 , _layout(layout)
-, _narrowWidth(st::defaultDialogRow.padding.left()
-	+ st::defaultDialogRow.photoSize
-	+ st::defaultDialogRow.padding.left())
+, _narrowWidth(NarrowWidth())
 , _searchControls(this)
 , _mainMenu({
 	.toggle = object_ptr<Ui::IconButton>(
@@ -406,6 +412,13 @@ Widget::Widget(
 	}, _innerList->lifetime());
 	_scrollToTop->raise();
 	_lockUnlock->toggle(false, anim::type::instant);
+
+	::Kotato::JsonSettings::Events(
+		"chat_list_lines"
+	) | rpl::on_next([=] {
+		_narrowWidth = NarrowWidth();
+		updateControlsGeometry();
+	}, lifetime());
 
 	_inner->updated(
 	) | rpl::on_next([=] {

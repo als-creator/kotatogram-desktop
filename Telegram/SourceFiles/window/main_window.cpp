@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "window/main_window.h"
 
+#include "kotato/kotato_settings.h"
 #include "api/api_updates.h"
 #include "storage/localstorage.h"
 #include "platform/platform_specific.h"
@@ -64,9 +65,12 @@ constexpr auto kSaveWindowPositionTimeout = crl::time(1000);
 using Core::WindowPosition;
 
 [[nodiscard]] QPoint ChildSkip() {
-	const auto skipx = st::defaultDialogRow.padding.left()
-		+ st::defaultDialogRow.photoSize
-		+ st::defaultDialogRow.padding.left();
+	const auto &row = (::Kotato::JsonSettings::GetInt("chat_list_lines") == 1)
+		? st::compactDialogRow
+		: st::defaultDialogRow;
+	const auto skipx = row.padding.left()
+		+ row.photoSize
+		+ row.padding.left();
 	const auto skipy = st::windowTitleHeight;
 	return { skipx, skipy };
 }

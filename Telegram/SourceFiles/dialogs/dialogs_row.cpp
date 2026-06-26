@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "dialogs/dialogs_row.h"
 
+#include "kotato/kotato_settings.h"
 #include "ui/chat/chat_theme.h" // CountAverageColor.
 #include "ui/color_contrast.h"
 #include "ui/effects/credits_graphics.h"
@@ -301,6 +302,9 @@ Row::~Row() {
 const style::DialogRow &Row::ComputeSt(
 		not_null<const Entry*> entry,
 		FilterId filterId) {
+	if (::Kotato::JsonSettings::GetInt("chat_list_lines") == 1) {
+		return st::compactDialogRow;
+	}
 	if (const auto history = entry->asHistory()) {
 		const auto hasTags = entry->hasChatsFilterTags(filterId);
 		const auto wideRow = history->peer->displayAsForum()
@@ -318,7 +322,9 @@ const style::DialogRow &Row::ComputeSt(
 
 void Row::recountHeight(float64 narrowRatio, FilterId filterId) {
 	const auto &st = ComputeSt(_id.entry(), filterId);
-	_height = ((&st == &st::defaultDialogRow) || !_id.history())
+	_height = (&st == &st::compactDialogRow)
+		? st::compactDialogRow.height
+		: ((&st == &st::defaultDialogRow) || !_id.history())
 		? st::defaultDialogRow.height
 		: anim::interpolate(
 			st.height,
@@ -362,6 +368,9 @@ void Row::updateCornerBadgeShown(
 	const auto now = user ? base::unixtime::now() : TimeId();
 	const auto channel = user ? nullptr : peer->asChannel();
 	const auto nextLayer = [&] {
+		if (::Kotato::JsonSettings::GetInt("chat_list_lines") == 1) {
+			return kNoneLayer;
+		}
 		if (hasUnreadBadgesAbove) {
 			return kNoneLayer;
 		} else if (user && Data::IsUserOnline(user, now)) {
@@ -595,7 +604,9 @@ void Row::paintUserpic(
 	const auto limit = Ui::kOutlineSegmentsMax;
 	const auto storiesCount = std::min(storiesCountReal, limit);
 	const auto storiesUnreadCount = std::min(storiesUnreadCountReal, limit);
-	if (_cornerBadgeUserpic->frame.size() != frameSize) {
+	const auto frameSizeChanged
+		= (_cornerBadgeUserpic->frame.size() != frameSize);
+	if (frameSizeChanged) {
 		_cornerBadgeUserpic->frame = QImage(
 			frameSize,
 			QImage::Format_ARGB32_Premultiplied);
@@ -615,6 +626,7 @@ void Row::paintUserpic(
 	const auto subscribed = Data::ChannelHasSubscriptionUntilDate(
 		peer ? peer->asChannel() : nullptr);
 	if (keyChanged
+		|| frameSizeChanged
 		|| !_cornerBadgeUserpic->layersManager.isFinished()
 		|| _cornerBadgeUserpic->active != active
 		|| _cornerBadgeUserpic->frameIndex != frameIndex
