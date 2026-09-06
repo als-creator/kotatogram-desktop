@@ -121,6 +121,7 @@ jobs:
           cd %userprofile%\TBuild\%REPO_NAME%\Telegram
 
           call configure.bat ^
+          x64 ^
           qt6 ^
           -D CMAKE_CONFIGURATION_TYPES=Release ^
           -D CMAKE_COMPILE_WARNING_AS_ERROR=ON ^
