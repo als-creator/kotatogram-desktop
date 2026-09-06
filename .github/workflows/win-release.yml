@@ -35,12 +35,17 @@ jobs:
       PREPARE_PATH: Telegram/build/prepare/prepare.py
       TBUILD: ${{ github.workspace }}\TBuild
 
+    defaults:
+      run:
+        shell: cmd
+
     steps:
       - name: Prepare directories.
         run: |
-          mkdir %TBUILD%\Libraries
-          mklink /d %GITHUB_WORKSPACE%\TBuild %TBUILD% >nul
-          echo LibrariesPath=%TBUILD%\Libraries\win64>>%GITHUB_ENV%
+          mkdir %userprofile%\TBuild\Libraries
+          mklink /d %GITHUB_WORKSPACE%\TBuild %userprofile%\TBuild
+          echo TBUILD=%GITHUB_WORKSPACE%\TBuild>>%GITHUB_ENV%
+          echo LibrariesPath=%GITHUB_WORKSPACE%\TBuild\Libraries\win64>>%GITHUB_ENV%
 
       - name: Get repository name.
         shell: bash
@@ -113,7 +118,7 @@ jobs:
       - name: Kotatogram Desktop build (Release).
         run: |
           C:
-          cd %userprofile%\TBuild\%REPO_NAME%\Telegram
+          cd %TBUILD%\%REPO_NAME%\Telegram
 
           call configure.bat ^
           qt6 ^
