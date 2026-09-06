@@ -132,6 +132,59 @@ jobs:
 
           cmake --build ..\out --config Release --parallel
 
+      - name: Self-sign executables.
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $ErrorActionPreference = 'Stop'
+          try {
+            $outDir = Join-Path $env:TBUILD "$env:REPO_NAME\out\Release"
+            Write-Host "Self-signing executables in $outDir"
+            if (-not (Test-Path (Join-Path $outDir 'Kotatogram.exe'))) {
+              Write-Warning 'Kotatogram.exe not found, skipping sign'
+              exit 0
+            }
+
+            $cert = New-SelfSignedCertificate `
+              -Type CodeSigningCert `
+              -Subject 'CN=Kotatogram Dev Build' `
+              -CertStoreLocation 'Cert:\CurrentUser\My' `
+              -KeyAlgorithm RSA -KeyLength 2048 `
+              -HashAlgorithm SHA256 `
+              -NotAfter (Get-Date).AddYears(1)
+
+            $thumb = $cert.Thumbprint
+            $pfx = Join-Path $env:TEMP 'ktg-dev.pfx'
+            $certPwd = ConvertTo-SecureString 'ktg-dev' -Force -AsPlainText
+            Export-PfxCertificate -Cert "Cert:\CurrentUser\My\$thumb" -FilePath $pfx -Password $certPwd | Out-Null
+
+            $signtool = Get-ChildItem "$env:ProgramFiles(x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+              Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            if (-not $signtool) {
+              Write-Warning 'signtool.exe not found, skipping sign'
+              exit 0
+            }
+            Write-Host "Using signtool: $($signtool.FullName)"
+
+            & $signtool.FullName sign `
+              /f $pfx /p 'ktg-dev' `
+              /fd SHA256 `
+              /tr 'http://timestamp.digicert.com' /td SHA256 `
+              /a (Join-Path $outDir 'Kotatogram.exe')
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+            & $signtool.FullName sign `
+              /f $pfx /p 'ktg-dev' `
+              /fd SHA256 `
+              /tr 'http://timestamp.digicert.com' /td SHA256 `
+              /a (Join-Path $outDir 'Updater.exe')
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+            Write-Host 'Self-sign OK'
+          } catch {
+            Write-Warning "Signing skipped due to error: $($_.Exception.Message)"
+          }
+
       - name: Move artifact.
         if: env.UPLOAD_ARTIFACT == 'true'
         run: |
