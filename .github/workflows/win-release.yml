@@ -118,7 +118,7 @@ jobs:
       - name: Kotatogram Desktop build (Release).
         run: |
           C:
-          cd %TBUILD%\%REPO_NAME%\Telegram
+          cd %userprofile%\TBuild\%REPO_NAME%\Telegram
 
           call configure.bat ^
           qt6 ^
