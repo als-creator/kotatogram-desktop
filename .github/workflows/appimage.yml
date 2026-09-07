@@ -122,6 +122,7 @@ jobs:
             $APPDIR/usr/share/applications/io.github.kotatogram.desktop
 
           cp $APPDIR/usr/share/icons/hicolor/512x512/apps/io.github.kotatogram.png $APPDIR/.DirIcon
+          cp $APPDIR/usr/share/icons/hicolor/512x512/apps/io.github.kotatogram.png $APPDIR/io.github.kotatogram.png
 
           printf '%s\n' \
             '[Desktop Entry]' \

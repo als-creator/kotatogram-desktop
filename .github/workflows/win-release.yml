@@ -1,4 +1,4 @@
-name: Kotatogram Windows Release (dev).
+name: Kotatogram Windows (dev).
 
 on:
   push:
@@ -27,7 +27,7 @@ on:
 jobs:
 
   windows:
-    name: Windows x64 (Release)
+    name: Windows x64 (Debug)
     runs-on: windows-latest
 
     env:
@@ -123,9 +123,9 @@ jobs:
 
       - name: Libraries.
         run: |
-          %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat silent qt6
+          %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat skip-release silent qt6
 
-      - name: Kotatogram Desktop build (Release).
+      - name: Kotatogram Desktop build (Debug).
         run: |
           C:
           cd %userprofile%\TBuild\%REPO_NAME%\Telegram
@@ -133,7 +133,7 @@ jobs:
           call configure.bat ^
           x64 ^
           qt6 ^
-          -D CMAKE_CONFIGURATION_TYPES=Release ^
+          -D CMAKE_CONFIGURATION_TYPES=Debug ^
           -D CMAKE_COMPILE_WARNING_AS_ERROR=ON ^
           -D CMAKE_MSVC_DEBUG_INFORMATION_FORMAT= ^
           -D DESKTOP_APP_DISABLE_AUTOUPDATE=OFF ^
@@ -141,7 +141,7 @@ jobs:
           -D TDESKTOP_API_ID=611335 ^
           -D TDESKTOP_API_HASH=d524b414d21f4d37f08684c1df41ac9c
 
-          cmake --build ..\out --config Release --parallel
+          cmake --build ..\out --config Debug --parallel
 
       - name: Self-sign executables.
         shell: pwsh
@@ -149,7 +149,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           try {
-            $outDir = Join-Path $env:TBUILD "$env:REPO_NAME\out\Release"
+            $outDir = Join-Path $env:TBUILD "$env:REPO_NAME\out\Debug"
             Write-Host "Self-signing executables in $outDir"
             if (-not (Test-Path (Join-Path $outDir 'Kotatogram.exe'))) {
               Write-Warning 'Kotatogram.exe not found, skipping sign'
@@ -199,7 +199,7 @@ jobs:
       - name: Move artifact.
         if: env.UPLOAD_ARTIFACT == 'true'
         run: |
-          set OUT=%TBUILD%\%REPO_NAME%\out\Release
+          set OUT=%TBUILD%\%REPO_NAME%\out\Debug
           mkdir artifact
           move %OUT%\Kotatogram.exe artifact/
           move %OUT%\Updater.exe artifact/
