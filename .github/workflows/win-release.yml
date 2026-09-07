@@ -51,6 +51,14 @@ jobs:
         shell: bash
         run: echo "REPO_NAME=${GITHUB_REPOSITORY##*/}" >> $GITHUB_ENV
 
+      - name: Pin CMake below 4.4.
+        shell: bash
+        run: |
+          python -m pip install --user "cmake<4.4" ninja
+          SCRIPTS="$(python -c "import sysconfig; print(sysconfig.get_path('scripts', scheme='nt_user'))")"
+          echo "PINNED_CMAKE=$SCRIPTS" >> $GITHUB_ENV
+          echo "$SCRIPTS" >> $GITHUB_PATH
+
       - name: Clone.
         uses: actions/checkout@v6
         with:
@@ -63,7 +71,9 @@ jobs:
           DOCPATH=$TBUILD/$REPO_NAME/docs/building-win.md
           SDK="$(grep "SDK version" $DOCPATH | sed -r 's/.*\*\*(.*)\*\* SDK version.*/\1/')"
           echo "SDK=$SDK" >> $GITHUB_ENV
-          sed -i '/CMAKE_${lang}_FLAGS_DEBUG_INIT/s/${_Zi}//' "$PROGRAMFILES"/CMake/share/cmake*/Modules/Platform/Windows-MSVC.cmake
+          CMAKE_ROOT="$(cmake --system-information | sed -n 's/^CMAKE_ROOT "\([^"]*\)"$/\1/p')"
+          echo "CMAKE_ROOT=$CMAKE_ROOT" >> $GITHUB_ENV
+          sed -i '/CMAKE_${lang}_FLAGS_DEBUG_INIT/s/${_Zi}//' "$CMAKE_ROOT/Modules/Platform/Windows-MSVC.cmake"
 
           echo "$(sha256sum $TBUILD/$REPO_NAME/$PREPARE_PATH | awk '{ print $1 }')" > CACHE_KEY.txt
           echo "$SDK" >> CACHE_KEY.txt
