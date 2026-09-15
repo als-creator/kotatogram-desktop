@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - dev
+    tags:
+      - 'k*'
+      - 'v*'
     paths-ignore:
       - 'docs/**'
       - '**.md'
@@ -24,6 +27,13 @@ on:
       - 'Telegram/configure.bat'
       - 'Telegram/Telegram.plist'
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Tag name to publish a GitHub Release (optional, e.g. k1.4.9)'
+        required: false
+
+permissions:
+  contents: read
 
 jobs:
 
@@ -81,7 +91,16 @@ jobs:
           mv ${{ runner.temp }}/.buildx-cache{-new,}
 
       - name: Kotatogram build (Release).
+        env:
+          API_ID: ${{ secrets.TDESKTOP_API_ID }}
+          API_HASH: ${{ secrets.TDESKTOP_API_HASH }}
         run: |
+          if [ -n "$API_ID" ] && [ -n "$API_HASH" ]; then
+            API_ARGS="-D TDESKTOP_API_ID=$API_ID -D TDESKTOP_API_HASH=$API_HASH"
+          else
+            echo "::warning::TDESKTOP_API_ID/HASH secrets are not set; building with the TEST API (works only with Telegram test servers)."
+            API_ARGS="-D TDESKTOP_API_TEST=ON"
+          fi
           docker run --rm \
           -u $(id -u) \
           -v $PWD:/usr/src/tdesktop \
@@ -90,7 +109,7 @@ jobs:
           /usr/src/tdesktop/Telegram/build/docker/centos_env/build.sh \
           -D CMAKE_BUILD_TYPE=Release \
           -D CMAKE_COMPILE_WARNING_AS_ERROR=ON \
-          -D TDESKTOP_API_TEST=ON \
+          $API_ARGS \
           -D DESKTOP_APP_DISABLE_AUTOUPDATE=OFF \
           -D DESKTOP_APP_DISABLE_CRASH_REPORTS=OFF
 
@@ -161,3 +180,27 @@ jobs:
           name: Kotatogram-Desktop-dev-x86_64.AppImage
           path: Kotatogram-Desktop-dev-x86_64.AppImage
           if-no-files-found: error
+
+  release:
+    name: Publish AppImage to Releases
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.release_tag != ''
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: Kotatogram-Desktop-dev-x86_64.AppImage
+
+      - name: Rename AppImage.
+        run: mv Kotatogram-Desktop-dev-x86_64.AppImage Kotatogram-x86_64.AppImage
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.event.inputs.release_tag || github.ref_name }}
+          name: Kotatogram ${{ github.event.inputs.release_tag || github.ref_name }}
+          generate_release_notes: true
+          files: Kotatogram-x86_64.AppImage
+          fail_on_unmatched_files: true
