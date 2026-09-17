@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - dev
-    tags:
-      - 'k*'
-      - 'v*'
     paths-ignore:
       - 'docs/**'
       - '**.md'
@@ -27,6 +24,10 @@ on:
       - 'Telegram/configure.bat'
       - 'Telegram/Telegram.plist'
   workflow_dispatch:
+
+concurrency:
+  group: kotatogram-appimage-dev
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -203,10 +204,9 @@ jobs:
           set -e
           REPO="${{ github.repository }}"
           VER=$(grep '^AppVersionStr ' Telegram/build/version | awk '{print $2}')
-          TAG="v${VER}"
-          gh release delete "$TAG" --repo "$REPO" --yes --cleanup-tag || true
+          TAG="v${VER}-build-${{ github.run_number }}"
           gh release create "$TAG" \
             Kotatogram-x86_64.AppImage \
             --repo "$REPO" \
-            --title "Kotatogram v${VER} (dev)" \
-            --notes "Rolling dev AppImage of **als-creator/kotatogram-desktop**, branch \`dev\`, actual version \`v${VER}\` (upstream dev, based on tdesktop, with forums)."
+            --title "Kotatogram v${VER} (dev) - build ${{ github.run_number }}" \
+            --notes "Dev AppImage of **als-creator/kotatogram-desktop**, branch \`dev\`, commit \`$GITHUB_SHA\`, actual version \`v${VER}\` (upstream dev, based on tdesktop, with forums)."
