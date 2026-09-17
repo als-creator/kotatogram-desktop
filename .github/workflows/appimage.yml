@@ -27,10 +27,6 @@ on:
       - 'Telegram/configure.bat'
       - 'Telegram/Telegram.plist'
   workflow_dispatch:
-    inputs:
-      release_tag:
-        description: 'Tag name to publish a GitHub Release (optional, e.g. k1.4.9)'
-        required: false
 
 permissions:
   contents: read
@@ -185,11 +181,14 @@ jobs:
     name: Publish AppImage to Releases
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.release_tag != ''
     permissions:
       contents: write
 
     steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
       - uses: actions/download-artifact@v8
         with:
           name: Kotatogram-Desktop-dev-x86_64.AppImage
@@ -197,10 +196,17 @@ jobs:
       - name: Rename AppImage.
         run: mv Kotatogram-Desktop-dev-x86_64.AppImage Kotatogram-x86_64.AppImage
 
-      - uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ github.event.inputs.release_tag || github.ref_name }}
-          name: Kotatogram ${{ github.event.inputs.release_tag || github.ref_name }}
-          generate_release_notes: true
-          files: Kotatogram-x86_64.AppImage
-          fail_on_unmatched_files: true
+      - name: Publish rolling release (actual dev version).
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          REPO="${{ github.repository }}"
+          VER=$(grep '^AppVersionStr ' Telegram/build/version | awk '{print $2}')
+          TAG="v${VER}"
+          gh release delete "$TAG" --repo "$REPO" --yes --cleanup-tag || true
+          gh release create "$TAG" \
+            Kotatogram-x86_64.AppImage \
+            --repo "$REPO" \
+            --title "Kotatogram v${VER} (dev)" \
+            --notes "Rolling dev AppImage of **als-creator/kotatogram-desktop**, branch \`dev\`, actual version \`v${VER}\` (upstream dev, based on tdesktop, with forums)."
