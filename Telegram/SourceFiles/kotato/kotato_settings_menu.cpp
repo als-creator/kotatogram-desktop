@@ -337,6 +337,21 @@ void SetupKotatoChats(
 
 	container->add(object_ptr<Button>(
 		container,
+		rktr("ktg_settings_hide_sponsored_messages"),
+		st::settingsButtonNoIcon
+	))->toggleOn(
+		rpl::single(::Kotato::JsonSettings::GetBool("hide_sponsored_messages"))
+	)->toggledValue(
+	) | rpl::filter([](bool enabled) {
+		return (enabled != ::Kotato::JsonSettings::GetBool("hide_sponsored_messages"));
+	}) | rpl::on_next([controller](bool enabled) {
+		::Kotato::JsonSettings::Set("hide_sponsored_messages", enabled);
+		controller->session().sponsoredMessages().clear();
+		::Kotato::JsonSettings::Write();
+	}, container->lifetime());
+
+	container->add(object_ptr<Button>(
+		container,
 		rktr("ktg_settings_view_profile_on_top"),
 		st::settingsButtonNoIcon
 	))->toggleOn(
