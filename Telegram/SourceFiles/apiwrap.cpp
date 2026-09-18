@@ -3917,9 +3917,9 @@ void ApiWrap::forwardMessagesUnquoted(
 		auto currentIds = QVector<MTPint>();
 		currentIds.push_back(MTP_int(item->id));
 
-		auto currentRandomId = MTP_long(randomIds.takeFirst());
+		const auto currentRandomId = randomIds.takeFirst();
 		auto currentRandomIds = QVector<MTPlong>();
-		currentRandomIds.push_back(currentRandomId);
+		currentRandomIds.push_back(MTP_long(currentRandomId));
 
 		const auto starsPaid = std::min(
 			action.options.starsApproved,
@@ -3956,7 +3956,7 @@ void ApiWrap::forwardMessagesUnquoted(
 				}
 				finish();
 			}).fail([=](const MTP::Error &error) {
-				sendMessageFail(error, peer);
+				sendMessageFail(error, peer, currentRandomId);
 				finish();
 			}).afterRequest(
 				history->sendRequestId
@@ -3973,6 +3973,7 @@ void ApiWrap::forwardMessagesUnquoted(
 		const auto medias = std::make_shared<QVector<Data::Media*>>();
 		const auto mediaInputs = std::make_shared<QVector<MTPInputSingleMedia>>();
 		const auto mediaRefs = std::make_shared<QVector<QByteArray>>();
+		const auto localIds = std::make_shared<base::flat_map<uint64, FullMsgId>>();
 		mediaInputs->reserve(ids.size());
 		mediaRefs->reserve(ids.size());
 
@@ -4018,6 +4019,7 @@ void ApiWrap::forwardMessagesUnquoted(
 				sentEntities));
 
 			_session->data().registerMessageRandomId(randomId, newId);
+			localIds->emplace(randomId, newId);
 
 			if (const auto photo = media->photo()) {
 				history->addNewLocalMessage({
@@ -4120,13 +4122,17 @@ void ApiWrap::forwardMessagesUnquoted(
 								if (wasUpdated) {
 									repeatRequest(repeatRequest);
 								} else {
-									sendMessageFail(error, peer);
+									for (const auto &[randomId, itemId] : *localIds) {
+										sendMessageFail(error, peer, randomId, itemId);
+									}
 								}
 							});
 							index++;
 						}
 					} else {
-						sendMessageFail(error, peer);
+						for (const auto &[randomId, itemId] : *localIds) {
+							sendMessageFail(error, peer, randomId, itemId);
+						}
 					}
 					finish();
 				}).afterRequest(
