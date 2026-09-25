@@ -36,6 +36,7 @@ https://github.com/kotatogram/kotatogram-desktop/blob/dev/LEGAL
 #include "core/application.h"
 #include "core/file_utilities.h"
 #include "storage/localstorage.h"
+#include "data/components/sponsored_messages.h"
 #include "data/data_session.h"
 #include "data/data_cloud_themes.h"
 #include "main/main_session.h"
