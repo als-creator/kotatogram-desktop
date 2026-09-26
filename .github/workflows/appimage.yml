@@ -209,4 +209,4 @@ jobs:
             Kotatogram-x86_64.AppImage \
             --repo "$REPO" \
             --title "Kotatogram v${VER} (dev) - build ${{ github.run_number }}" \
-            --notes "Dev AppImage of **als-creator/kotatogram-desktop**, branch \`dev\`, commit \`$GITHUB_SHA\`, actual version \`v${VER}\` (upstream dev, based on tdesktop, with forums)."
+            --notes "Dev AppImage of **als-creator/kotatogram-desktop**, branch \`dev\`, commit \`$GITHUB_SHA\`, actual version \`v${VER}\` (upstream dev, based on tdesktop, with forums). Fake TLS MTProto masking built in: add an MTProto proxy with a long secret starting with \`ee\` (SNI domain comes from the secret's hex tail)."
