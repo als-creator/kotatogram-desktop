@@ -2237,6 +2237,9 @@ string(REGEX REPLACE "^(k|v)([0-9]\\.[0-9])" "\\2" KTGDESKTOP_GIT_VERSION "${KTG
 if (KTGDESKTOP_GIT_VERSION)
     target_compile_definitions(Telegram PRIVATE KTGDESKTOP_GIT_VERSION="${KTGDESKTOP_GIT_VERSION}")
 endif()
+if (KTGDESKTOP_BUILD_NUMBER)
+    target_compile_definitions(Telegram PRIVATE KTGDESKTOP_BUILD_NUMBER="${KTGDESKTOP_BUILD_NUMBER}")
+endif()
 
 get_property(is_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
 if (APPLE
