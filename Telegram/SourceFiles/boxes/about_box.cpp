@@ -180,6 +180,9 @@ QString currentVersionText() {
 	} else if (AppKotatoBetaVersion) {
 		result += " beta";
 	}
+	if (AppKotatoBuildNumber[0]) {
+		result += u" (dev build %1)"_q.arg(QString::fromLatin1(AppKotatoBuildNumber));
+	}
 	if (Platform::IsWindows64Bit()) {
 		result += " x64";
 	} else if (Platform::IsWindowsARM64()) {

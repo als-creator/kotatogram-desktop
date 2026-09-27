@@ -107,6 +107,7 @@ jobs:
           -D CMAKE_BUILD_TYPE=Release \
           -D CMAKE_COMPILE_WARNING_AS_ERROR=ON \
           $API_ARGS \
+          -D KTGDESKTOP_BUILD_NUMBER=${{ github.run_number }} \
           -D DESKTOP_APP_DISABLE_AUTOUPDATE=OFF \
           -D DESKTOP_APP_DISABLE_CRASH_REPORTS=OFF
 
