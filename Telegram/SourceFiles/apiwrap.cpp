@@ -4093,46 +4093,58 @@ void ApiWrap::forwardMessagesUnquoted(
 					}
 					finish();
 				}).fail([=](const MTP::Error &error) {
+					const auto failAlbum = [=] {
+						for (const auto &[randomId, itemId] : *localIds) {
+							sendMessageFail(error, peer, randomId, itemId);
+						}
+						if (shared && !--shared->requestsLeft) {
+							shared->callback();
+						}
+					};
 					if (error.code() == 400
 						&& error.type().startsWith(qstr("FILE_REFERENCE_"))) {
-						auto refreshRequests = mediaRefs->size();
+						// The last refresh result decides whether all the
+						// references were updated and the album can be sent
+						// again. The state is shared to be usable from the
+						// asynchronous refresh handlers.
+						struct RefreshState {
+							int left = 0;
+							bool updated = false;
+						};
+						const auto refreshState = std::make_shared<RefreshState>();
+						refreshState->left = int(mediaRefs->size());
 						auto index = 0;
-						auto wasUpdated = false;
 						for (auto i = medias->begin(), e = medias->end(); i != e; i++) {
 							const auto media = *i;
 							const auto origin = media->document()
 									? media->document()->stickerOrGifOrigin()
 									: Data::FileOrigin();
 							const auto usedFileReference = mediaRefs->value(index);
-							
-							refreshFileReference(origin, [=, &refreshRequests, &wasUpdated](const auto &result) {
+
+							refreshFileReference(origin, [=, state = refreshState](const auto &result) {
 								const auto currentMediaReference = media->photo()
 									? media->photo()->fileReference()
 									: media->document()->fileReference();
 
 								if (currentMediaReference != usedFileReference) {
-									wasUpdated = true;
+									state->updated = true;
 								}
 
-								if (refreshRequests > 0) {
-									refreshRequests--;
+								if (state->left > 1) {
+									--state->left;
 									return;
 								}
 
-								if (wasUpdated) {
+								if (state->updated) {
 									repeatRequest(repeatRequest);
 								} else {
-									for (const auto &[randomId, itemId] : *localIds) {
-										sendMessageFail(error, peer, randomId, itemId);
-									}
+									failAlbum();
 								}
 							});
 							index++;
 						}
 					} else {
-						for (const auto &[randomId, itemId] : *localIds) {
-							sendMessageFail(error, peer, randomId, itemId);
-						}
+						failAlbum();
 					}
 					finish();
 				}).afterRequest(
