@@ -1029,6 +1029,22 @@ public:
 	[[nodiscard]] rpl::producer<bool> chatFiltersHorizontalChanges() const;
 	void setChatFiltersHorizontal(bool value);
 
+	[[nodiscard]] bool chatListCompactTopics() const {
+		return _chatListCompactTopics.current();
+	}
+	[[nodiscard]] rpl::producer<bool> chatListCompactTopicsChanges() const {
+		return _chatListCompactTopics.changes();
+	}
+	void setChatListCompactTopics(bool value);
+
+	[[nodiscard]] bool chatListNoNestedTopics() const {
+		return _chatListNoNestedTopics.current();
+	}
+	[[nodiscard]] rpl::producer<bool> chatListNoNestedTopicsChanges() const {
+		return _chatListNoNestedTopics.changes();
+	}
+	void setChatListNoNestedTopics(bool value);
+
 	[[nodiscard]] Media::VideoQuality videoQuality() const;
 	void setVideoQuality(Media::VideoQuality quality);
 
@@ -1218,6 +1234,8 @@ private:
 	rpl::variable<int> _ivZoom = 0;
 	Media::VideoQuality _videoQuality;
 	rpl::variable<bool> _chatFiltersHorizontal = false;
+	rpl::variable<bool> _chatListCompactTopics = false;
+	rpl::variable<bool> _chatListNoNestedTopics = false;
 	base::flat_map<QByteArray, QByteArray> _prefs;
 
 	bool _tabbedReplacedWithInfo = false; // per-window
