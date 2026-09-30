@@ -792,9 +792,14 @@ void FiltersLimitBox(
 	const auto limits = Data::PremiumLimits(session);
 	const auto defaultLimit = float64(limits.dialogFiltersDefault());
 	const auto premiumLimit = float64(limits.dialogFiltersPremium());
+	// Kotatogram: the built-in news feed tab is not a folder,
+	// it must not be counted as a used folders slot.
 	const auto cloud = int(ranges::count_if(
 		session->data().chatsFilters().list(),
-		[](const Data::ChatFilter &f) { return f.id() != FilterId(); }));
+		[](const Data::ChatFilter &f) {
+			return f.id()
+				&& f.id() != kNewsFeedFilterId;
+		}));
 	const auto current = float64(filtersCountOverride.value_or(cloud));
 
 	auto text = rpl::combine(

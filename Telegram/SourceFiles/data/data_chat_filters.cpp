@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "data/data_chat_filters.h"
 
+#include "core/application.h"
+#include "kotato/kotato_lang.h"
 #include "kotato/kotato_settings.h"
 #include "api/api_text_entities.h"
 #include "history/history.h"
@@ -35,6 +37,34 @@ namespace {
 constexpr auto kRefreshSuggestedTimeout = 7200 * crl::time(1000);
 constexpr auto kLoadExceptionsAfter = 100;
 constexpr auto kLoadExceptionsPerRequest = 100;
+
+ChatFilter MakeNewsFeedFilter(not_null<Session*> owner) {
+	using Flag = ChatFilter::Flag;
+	const auto accountId = owner->session().userId().bare;
+	auto never = base::flat_set<not_null<History*>>();
+	for (const auto &peerId : Core::App().settings().newsFeedExcluded(
+			accountId)) {
+		const auto peer = owner->peerLoaded(peerId);
+		if (peer) {
+			never.emplace(owner->history(peerId));
+		}
+	}
+	return ChatFilter(
+		kNewsFeedFilterId,
+		ChatFilterTitle{
+			.text = TextWithEntities{ ktr("ktg_news_feed_tab") },
+			.isStatic = true,
+		},
+		QString::fromUtf8("\xF0\x9F\x93\xA2"), // 📢
+		std::nullopt, // colorIndex
+		Flag::Channels,
+		{}, // always
+		{}, // pinned
+		std::move(never),
+		false, // isDefault
+		true,  // isLocal
+		0);    // localCloudOrder
+}
 
 [[nodiscard]] crl::time RequestUpdatesEach(not_null<Session*> owner) {
 	const auto appConfig = &owner->session().appConfig();
@@ -938,6 +968,12 @@ void ChatFilters::received(const QVector<MTPDialogFilter> &list) {
 	if (!ranges::contains(begin(_list), end(_list), 0, &ChatFilter::id)) {
 		_list.insert(begin(_list), ChatFilter());
 	}
+	// The built-in "News feed" tab is placed right after "All".
+	if (Core::App().settings().chatListNewsFeed()
+		&& !ranges::contains(_list, kNewsFeedFilterId, &ChatFilter::id)) {
+		applyInsert(MakeNewsFeedFilter(_owner), 1);
+		changed = true;
+	}
 	if (changed || !_loaded || _reloading) {
 		_loaded = true;
 		_reloading = false;
@@ -1256,6 +1292,11 @@ const ChatFilter &ChatFilters::applyUpdatedPinned(
 	Assert(i != end(_list));
 
 	const auto limit = _owner->pinnedChatsLimit(id);
+	// Kotatogram: the news feed tab includes all broadcast channels by its
+	// own rule, so pinning a chat there must not add it to "always" - that
+	// would turn the tab into a regular folder and would send requests with
+	// its id to the server.
+	const auto newsFeed = (id == kNewsFeedFilterId);
 	auto always = i->always();
 	auto pinned = std::vector<not_null<History*>>();
 	pinned.reserve(dialogs.size());
@@ -1264,7 +1305,9 @@ const ChatFilter &ChatFilters::applyUpdatedPinned(
 			if (always.contains(history)) {
 				pinned.push_back(history);
 			} else if (always.size() < limit || i->isLocal()) {
-				always.insert(history);
+				if (!newsFeed) {
+					always.insert(history);
+				}
 				pinned.push_back(history);
 			}
 		}
@@ -1295,21 +1338,37 @@ void ChatFilters::saveOrder(
 	const auto limit = Data::PremiumLimits(&_owner->session()).dialogFiltersCurrent();
 
 	auto ids = QVector<MTPint>();
-	ids.reserve(order.size());
+	ids.reserve(order.size() + 1);
 	auto cloudIds = QVector<MTPint>();
 	cloudIds.reserve(limit);
 
-	for (const auto id : order) {
+	const auto collect = [&](FilterId id, bool newsFeed) {
 		ids.push_back(MTP_int(id));
 
 		auto i = ranges::find(_list, id, &ChatFilter::id);
 		Assert(i != end(_list));
 
-		if ((*i).isLocal()) {
+		// Kotatogram: the built-in news feed tab is not a real folder, it
+		// is never sent to the server and takes no cloud order slot.
+		if (newsFeed) {
+			return;
+		} else if ((*i).isLocal()) {
 			i->setLocalCloudOrder(cloudIds.size());
 		} else {
 			cloudIds.push_back(MTP_int(id));
 		}
+	};
+	for (const auto id : order) {
+		collect(id, id == kNewsFeedFilterId);
+	}
+	// Keep the news feed tab in the list even if the caller passed an order
+	// without it (e.g. the folders settings saving a new cloud folder).
+	const auto newsFeed = ranges::find(_list, kNewsFeedFilterId, &ChatFilter::id);
+	if ((newsFeed != end(_list))
+		&& !ids.contains(MTP_int(kNewsFeedFilterId))) {
+		ids.insert(
+			std::min(int(newsFeed - begin(_list)), ids.size()),
+			MTP_int(kNewsFeedFilterId));
 	}
 	const auto wrapped = MTP_vector<MTPint>(ids);
 	apply(MTP_updateDialogFilterOrder(wrapped));
@@ -1597,13 +1656,55 @@ void ChatFilters::saveLocal() {
 	const auto isTestAccount = account->mtp().isTestMode();
 
 	for (const auto &folder : _list) {
-		if (folder.isLocal()) {
+		if (folder.id() == kNewsFeedFilterId) {
+			continue;
+		} else if (folder.isLocal()) {
 			localFolders << folder.toLocal().toJson();
 		}
 	}
 
 	::Kotato::JsonSettings::Set("folders/local", localFolders, accountId, isTestAccount);
 	::Kotato::JsonSettings::Write();
+}
+
+void ChatFilters::setNewsFeedEnabled(bool enabled) {
+	if (Core::App().settings().chatListNewsFeed() == enabled) {
+		return;
+	}
+	Core::App().settings().setChatListNewsFeed(enabled);
+	// Kotatogram: the tab can be toggled from the tabs strip button, so the
+	// flag has to reach the settings file without waiting for a restart.
+	Core::App().saveSettings();
+	if (!enabled) {
+		remove(kNewsFeedFilterId);
+		return;
+	}
+	if (!ranges::contains(_list, kNewsFeedFilterId, &ChatFilter::id)) {
+		applyInsert(MakeNewsFeedFilter(_owner), 1);
+	}
+	_listChanged.fire({});
+}
+
+bool ChatFilters::newsFeedEnabled() const {
+	return ranges::contains(_list, kNewsFeedFilterId, &ChatFilter::id);
+}
+
+void ChatFilters::setNewsFeedFilter(ChatFilter filter) {
+	Expects(filter.id() == kNewsFeedFilterId);
+
+	auto excluded = std::vector<PeerId>();
+	excluded.reserve(filter.never().size());
+	for (const auto &history : filter.never()) {
+		excluded.push_back(history->peer->id);
+	}
+	Core::App().settings().setNewsFeedExcluded(
+		_owner->session().userId().bare,
+		std::move(excluded));
+	set(MakeNewsFeedFilter(_owner));
+}
+
+int ChatFilters::newsFeedOffset() const {
+	return ranges::contains(_list, kNewsFeedFilterId, &ChatFilter::id) ? 1 : 0;
 }
 
 bool CanRemoveFromChatFilter(

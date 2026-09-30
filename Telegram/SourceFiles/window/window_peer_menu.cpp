@@ -551,6 +551,10 @@ void Filler::addTogglePin() {
 	}
 	const auto controller = _controller;
 	const auto filterId = _request.filterId;
+	// Kotatogram: the built-in news feed tab is not pinnable.
+	if (filterId == kNewsFeedFilterId) {
+		return;
+	}
 	const auto entry = _thread ? (Dialogs::Entry*)_thread : _sublist;
 	if (!entry || entry->fixedOnTopIndex()) {
 		return;
@@ -4486,6 +4490,12 @@ void TogglePinnedThread(
 		Fn<void()> onToggled) {
 	if (!filterId) {
 		return TogglePinnedThread(controller, entry, onToggled);
+	}
+	// Kotatogram: the built-in news feed tab is a derived view of all
+	// broadcast channels, it has no persistent pin order, so it is not
+	// pinnable.
+	if (filterId == kNewsFeedFilterId) {
+		return;
 	}
 	const auto history = entry->asHistory();
 	if (!history) {

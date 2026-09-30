@@ -601,7 +601,9 @@ not_null<Ui::VerticalLayout*> SetupFoldersList(
 	};
 	const auto &list = session->data().chatsFilters().list();
 	for (const auto &filter : list) {
-		if (filter.id()) {
+		// Kotatogram: the built-in news feed tab is not a folder, it is
+		// configured from its own tab menu and must not be edited here.
+		if (filter.id() && filter.id() != kNewsFeedFilterId) {
 			addFilter(filter);
 		}
 	}

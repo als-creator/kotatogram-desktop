@@ -4152,7 +4152,10 @@ bool CheckAndJumpToNearChatsFilter(
 	if (changed >= int(list->size()) || changed < 0) {
 		return false;
 	}
-	if (changed > Data::PremiumLimits(session).dialogFiltersCurrent()) {
+	// Kotatogram: the built-in news feed tab is not a folder, so it must not
+	// be counted against the premium folders limit.
+	if ((changed - session->data().chatsFilters().newsFeedOffset())
+		> Data::PremiumLimits(session).dialogFiltersCurrent()) {
 		return false;
 	}
 	if (jump) {

@@ -562,8 +562,10 @@ QString SubItemValue(
 		QStringList tags;
 		const auto &list = row->history()->session().data().chatsFilters().list();
 		for (const auto &filter : list) {
+			// Kotatogram: the built-in news feed tab is not a folder.
 			if (!entry->inChatList(filter.id())
-				|| (filter.id() == filterId)) {
+				|| (filter.id() == filterId)
+				|| (filter.id() == kNewsFeedFilterId)) {
 				continue;
 			}
 			tags << filter.title().text.text;
