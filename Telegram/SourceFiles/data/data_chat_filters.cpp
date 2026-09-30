@@ -1368,7 +1368,7 @@ void ChatFilters::saveOrder(
 	if ((newsFeed != end(_list))
 		&& !ids.contains(MTP_int(kNewsFeedFilterId))) {
 		ids.insert(
-			std::min(int(newsFeed - begin(_list)), ids.size()),
+			std::min(int(newsFeed - begin(_list)), int(ids.size())),
 			MTP_int(kNewsFeedFilterId));
 	}
 	const auto wrapped = MTP_vector<MTPint>(ids);

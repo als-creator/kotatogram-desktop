@@ -58,6 +58,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/call_delayed.h"
 #include "base/qt/qt_key_modifiers.h"
 #include "core/application.h"
+#include "core/core_settings.h"
 #include "core/shortcuts.h"
 #include "core/click_handler_types.h"
 #include "core/mime_type.h"
