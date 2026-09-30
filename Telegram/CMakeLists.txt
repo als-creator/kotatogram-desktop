@@ -218,6 +218,8 @@ PRIVATE
     boxes/filters/edit_filter_chats_preview.h
     boxes/filters/edit_filter_links.cpp
     boxes/filters/edit_filter_links.h
+    boxes/news_feed_edit_box.cpp
+    boxes/news_feed_edit_box.h
     boxes/peers/add_bot_to_chat_box.cpp
     boxes/peers/add_bot_to_chat_box.h
     boxes/peers/add_participants_box.cpp

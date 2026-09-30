@@ -201,5 +201,11 @@
 		"many": "Connect {count} accounts with different mobile numbers in official apps",
 		"other": "Connect {count} accounts with different mobile numbers in official apps"
 	},
+	"ktg_news_feed_tab": "News feed",
+	"ktg_news_feed_toggle": "Show news feed tab",
+	"ktg_news_feed_edit": "Include / exclude channels",
+	"ktg_news_feed_hide": "Hide tab",
+	"ktg_news_feed_edit_title": "News feed channels",
+	"ktg_news_feed_edit_about": "Channels with a checkmark are shown in the news feed tab.",
 	"dummy_last_string": ""
 }

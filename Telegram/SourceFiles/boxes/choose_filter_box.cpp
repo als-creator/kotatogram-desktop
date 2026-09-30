@@ -163,6 +163,13 @@ void ChangeFilterById(
 		bool add) {
 	Expects(filterId != 0);
 
+	// Kotatogram: the built-in news feed tab is not a folder, its contents
+	// are derived from its own rule and can't be changed here. Its id must
+	// never be sent to the server.
+	if (filterId == kNewsFeedFilterId) {
+		return;
+	}
+
 	const auto list = history->owner().chatsFilters().list();
 	const auto i = ranges::find(list, filterId, &Data::ChatFilter::id);
 	if (i != end(list)) {
@@ -211,7 +218,10 @@ ChooseFilterValidator::ChooseFilterValidator(not_null<History*> history)
 
 bool ChooseFilterValidator::canAdd() const {
 	for (const auto &filter : _history->owner().chatsFilters().list()) {
-		if (filter.id() && !filter.contains(_history)) {
+		// Kotatogram: the built-in news feed tab is not a folder.
+		if (filter.id()
+			&& filter.id() != kNewsFeedFilterId
+			&& !filter.contains(_history)) {
 			return true;
 		}
 	}
@@ -220,6 +230,12 @@ bool ChooseFilterValidator::canAdd() const {
 
 bool ChooseFilterValidator::canAdd(FilterId filterId) const {
 	Expects(filterId != 0);
+
+	// Kotatogram: the built-in news feed tab is not a folder, a chat can
+	// not be dragged into it.
+	if (filterId == kNewsFeedFilterId) {
+		return false;
+	}
 
 	const auto list = _history->owner().chatsFilters().list();
 	const auto i = ranges::find(list, filterId, &Data::ChatFilter::id);
@@ -231,6 +247,12 @@ bool ChooseFilterValidator::canAdd(FilterId filterId) const {
 
 bool ChooseFilterValidator::canRemove(FilterId filterId) const {
 	Expects(filterId != 0);
+
+	// Kotatogram: the built-in news feed tab is not a folder, a chat can
+	// not be dragged out of it.
+	if (filterId == kNewsFeedFilterId) {
+		return false;
+	}
 
 	const auto list = _history->owner().chatsFilters().list();
 	const auto i = ranges::find(list, filterId, &Data::ChatFilter::id);
@@ -273,9 +295,12 @@ void FillChooseFilterMenu(
 	const auto validator = ChooseFilterValidator(history);
 	const auto &list = history->owner().chatsFilters().list();
 	const auto showColors = history->owner().chatsFilters().tagsEnabled();
+	// Kotatogram: the built-in news feed tab is not a folder, it must not
+	// be offered here and must not take a slot of the folders limit.
+	const auto newsOffset = history->owner().chatsFilters().newsFeedOffset();
 	for (const auto &filter : list) {
 		const auto id = filter.id();
-		if (!id) {
+		if (!id || id == kNewsFeedFilterId) {
 			continue;
 		}
 
@@ -325,7 +350,7 @@ void FillChooseFilterMenu(
 	const auto limit = [session = &controller->session()] {
 		return Data::PremiumLimits(session).dialogFiltersCurrent();
 	};
-	if ((list.size() - 1) < limit()) {
+	if ((list.size() - 1 - newsOffset) < limit()) {
 		menu->addAction(tr::lng_filters_create(tr::now), [=] {
 			const auto strong = weak.get();
 			if (!strong) {
@@ -333,7 +358,7 @@ void FillChooseFilterMenu(
 			}
 			const auto session = &strong->session();
 			const auto &list = session->data().chatsFilters().list();
-			if ((list.size() - 1) >= limit()) {
+			if ((list.size() - 1 - newsOffset) >= limit()) {
 				return;
 			}
 			const auto chooseNextId = [&] {
@@ -379,7 +404,9 @@ bool FillChooseFilterWithAdminedGroupsMenu(
 	auto added = 0;
 	for (const auto &filter : list) {
 		const auto id = filter.id();
-		if (!id) {
+		// Kotatogram: the built-in news feed tab is not a folder, it must
+		// not be restricted by a common groups filter.
+		if (!id || id == kNewsFeedFilterId) {
 			continue;
 		}
 		auto canRestrictList = std::vector<not_null<PeerData*>>();

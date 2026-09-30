@@ -21,6 +21,12 @@ namespace Ui {
 struct MoreChatsBarContent;
 } // namespace Ui
 
+// Reserved FilterId of the built-in "News feed" tab: a local-only folder
+// that is never sent to the server. Negative so it can never clash with
+// server cloud folders or Kotatogram's locally created folders (which
+// start counting from 2) and with the "Edit folders" pseudo-button (-1).
+inline constexpr auto kNewsFeedFilterId = FilterId(-2);
+
 namespace Data {
 
 class Session;
@@ -245,6 +251,18 @@ public:
 	[[nodiscard]] rpl::producer<bool> tagsEnabledValue() const;
 	[[nodiscard]] rpl::producer<bool> tagsEnabledChanges() const;
 	void requestToggleTags(bool value, Fn<void()> fail);
+
+	// The built-in "News feed" tab: show or hide it in the folder strip.
+	void setNewsFeedEnabled(bool enabled);
+	[[nodiscard]] bool newsFeedEnabled() const;
+	// Persist the include/exclude selection of the news feed tab.
+	void setNewsFeedFilter(ChatFilter filter);
+	// Kotatogram: the news feed tab is not a real folder, so it must not
+	// take a slot of the premium folders limit. Returns 1 if the tab is
+	// currently present in the list, so that index-based limits (locked
+	// folders in the sidebar, in the tabs strip and in the tabs list menu)
+	// can be shifted by it.
+	[[nodiscard]] int newsFeedOffset() const;
 
 private:
 	struct MoreChatsData {

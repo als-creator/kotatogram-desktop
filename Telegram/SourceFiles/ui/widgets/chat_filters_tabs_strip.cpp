@@ -10,6 +10,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_chat_filters_remove_manager.h"
 #include "boxes/choose_filter_box.h"
 #include "boxes/filters/edit_filter_box.h"
+#include "boxes/news_feed_edit_box.h"
 #include "boxes/premium_limits_box.h"
 #include "core/application.h"
 #include "core/shortcuts.h"
@@ -20,12 +21,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_session.h"
 #include "data/data_unread_value.h"
 #include "data/data_user.h"
+#include "kotato/kotato_lang.h"
 #include "lang/lang_keys.h"
 #include "main/main_session.h"
 #include "settings/sections/settings_folders.h"
 #include "ui/widgets/menu/menu_action.h"
 #include "ui/power_saving.h"
 #include "ui/ui_utility.h"
+#include "ui/widgets/buttons.h"
 #include "ui/widgets/chat_filters_tabs_slider_reorder.h"
 #include "ui/widgets/menu/menu_add_action_callback_factory.h"
 #include "ui/widgets/popup_menu.h"
@@ -55,6 +58,10 @@ struct State final {
 
 	std::unique_ptr<Ui::ChatsFiltersTabsReorder> reorder;
 	bool ignoreRefresh = false;
+
+	// Kotatogram: the button that shows / hides the built-in news feed
+	// tab, it is placed at the right end of the tabs row.
+	object_ptr<Ui::IconButton> newsFeedButton = nullptr;
 };
 
 void ShowMenu(
@@ -78,7 +85,27 @@ void ShowMenu(
 	const auto addAction = Ui::Menu::CreateAddActionCallback(
 		state->menu.get());
 
-	if (id) {
+	if (id == kNewsFeedFilterId) {
+		addAction(
+			ktr("ktg_news_feed_edit"),
+			[=] { EditNewsFeedFilter(controller); },
+			&st::menuIconEdit);
+
+		Window::MenuAddMarkAsReadChatListAction(
+			controller,
+			[=] { return session->data().chatsFilters().chatsList(id); },
+			addAction);
+
+		auto hideTab = [=] {
+			session->data().chatsFilters().setNewsFeedEnabled(false);
+		};
+		addAction({
+			.text = ktr("ktg_news_feed_hide"),
+			.handler = std::move(hideTab),
+			.icon = &st::menuIconDeleteAttention,
+			.isAttention = true,
+		});
+	} else if (id) {
 		addAction(
 			tr::lng_filters_context_edit(tr::now),
 			[=] { EditExistingFilter(controller, id); },
@@ -148,9 +175,12 @@ void ShowFiltersListMenu(
 		st::popupMenuWithIcons);
 
 	const auto reorderAll = session->user()->isPremium();
+	// Kotatogram: shift the folders limit by the built-in news feed tab,
+	// which is not a real folder and is never premium-locked.
+	const auto newsOffset = session->data().chatsFilters().newsFeedOffset();
 	const auto maxLimit = (reorderAll ? 1 : 0)
 		+ Data::PremiumLimits(session).dialogFiltersCurrent();
-	const auto premiumFrom = (reorderAll ? 0 : 1) + maxLimit;
+	const auto premiumFrom = (reorderAll ? 0 : 1) + maxLimit + newsOffset;
 
 	for (auto i = 0; i < list.size(); ++i) {
 		const auto title = list[i].title();
@@ -230,6 +260,52 @@ not_null<Ui::RpWidget*> AddChatFiltersTabsStrip(
 				? st::dialogsSearchTabs
 				: st::chatsFiltersTabs));
 	const auto state = wrap->lifetime().make_state<State>();
+
+	// Kotatogram: a visible button that shows / hides the built-in news
+	// feed tab. It is created only for the chats list, which is the only
+	// place where the tab can be reached, so that the other users of the
+	// strip (share box, peer menu) are not affected.
+	const auto newsFeedButton = [&] -> Ui::IconButton* {
+		if (!trackActiveFilterAndUnreadAndReorder) {
+			return nullptr;
+		}
+		const auto owned = object_ptr<Ui::IconButton>(
+			container,
+			st::newsFeedToggle);
+		const auto button = owned.get();
+		button->setIconOverride(
+			&st::menuIconChannel,
+			&st::menuIconChannel);
+		button->setClickedCallback([=] {
+			const auto filters = &session->data().chatsFilters();
+			const auto enabled = !filters->newsFeedEnabled();
+			filters->setNewsFeedEnabled(enabled);
+			if (enabled) {
+				controller->setActiveChatsFilter(kNewsFeedFilterId);
+			} else if (controller->activeChatsFilterCurrent()
+				== kNewsFeedFilterId) {
+				controller->setActiveChatsFilter(FilterId());
+			}
+		});
+		const auto updateButton = [=] {
+			const auto enabled = session->data().chatsFilters()
+				.newsFeedEnabled();
+			std::optional<QColor> color;
+			if (enabled) {
+				color = st::dialogsUnreadBg->c;
+			}
+			button->setIconColorOverride(color);
+			button->setToolTip(enabled
+				? ktr("ktg_news_feed_hide")
+				: ktr("ktg_news_feed_toggle"));
+		};
+		session->data().chatsFilters().changed(
+		) | rpl::on_next(updateButton, wrap->lifetime());
+		updateButton();
+		button->show();
+		state->newsFeedButton = std::move(owned);
+		return button;
+	}();
 	const auto reassignUnreadValue = [=] {
 		state->reorderLifetime.destroy();
 		const auto &list = session->data().chatsFilters().list();
@@ -404,9 +480,16 @@ not_null<Ui::RpWidget*> AddChatFiltersTabsStrip(
 		slider->fitWidthToSections();
 		{
 			const auto reorderAll = session->user()->isPremium();
+			// Kotatogram: the built-in news feed tab takes no folder slot,
+			// so index-based limits are shifted by it and it is pinned
+			// right after "All", where it is always inserted.
+			const auto newsOffset = session->data().chatsFilters()
+				.newsFeedOffset();
 			const auto maxLimit = (reorderAll ? 1 : 0)
 				+ Data::PremiumLimits(session).dialogFiltersCurrent();
-			const auto premiumFrom = (reorderAll ? 0 : 1) + maxLimit;
+			const auto premiumFrom = (reorderAll ? 0 : 1)
+				+ maxLimit
+				+ newsOffset;
 			slider->setLockedFrom((premiumFrom >= list.size())
 				? 0
 				: premiumFrom);
@@ -419,9 +502,12 @@ not_null<Ui::RpWidget*> AddChatFiltersTabsStrip(
 				if (!reorderAll) {
 					state->reorder->addPinnedInterval(0, 1);
 				}
+				if (newsOffset) {
+					state->reorder->addPinnedInterval(1, 1);
+				}
 				state->reorder->addPinnedInterval(
 					premiumFrom,
-					std::max(1, int(list.size()) - maxLimit));
+					std::max(1, int(list.size()) - maxLimit - newsOffset));
 			}
 		}
 		if (trackActiveFilterAndUnreadAndReorder) {
@@ -496,7 +582,9 @@ not_null<Ui::RpWidget*> AddChatFiltersTabsStrip(
 					[=](int i) { slider->setActiveSection(i); });
 			}
 		}, state->rebuildLifetime);
-		wrap->toggle((list.size() > 1), anim::type::instant);
+		wrap->toggle(
+			(list.size() > 1) || newsFeedButton,
+			anim::type::instant);
 
 		if (state->reorder) {
 			state->reorder->start();
@@ -507,6 +595,11 @@ not_null<Ui::RpWidget*> AddChatFiltersTabsStrip(
 		Data::AmPremiumValue(session) | rpl::to_empty
 	) | rpl::on_next(rebuild, wrap->lifetime());
 	rebuild();
+	if (newsFeedButton) {
+		// Kotatogram: keep the row visible even when a single tab is left,
+		// otherwise the news feed button would become unreachable.
+		wrap->toggle(true, anim::type::instant);
+	}
 
 	session->data().chatsFilters().isChatlistChanged(
 	) | rpl::on_next([=](FilterId id) {
@@ -525,9 +618,19 @@ not_null<Ui::RpWidget*> AddChatFiltersTabsStrip(
 		parent->widthValue() | rpl::filter(rpl::mappers::_1 > 0),
 		slider->heightValue() | rpl::filter(rpl::mappers::_1 > 0)
 	) | rpl::on_next([=](int w, int h) {
-		scroll->resize(w, h);
+		// Kotatogram: the news feed button is placed at the right end of
+		// the row, so the tabs area is shortened to make room for it.
+		const auto right = newsFeedButton
+			? (newsFeedButton->width() + st::dialogsFilterPadding.x() * 2)
+			: 0;
+		scroll->resize(w - right, h);
 		container->resize(w, h);
 		wrap->resize(w, h);
+		if (newsFeedButton) {
+			newsFeedButton->moveToLeft(
+				w - newsFeedButton->width() - st::dialogsFilterPadding.x(),
+				(h - newsFeedButton->height()) / 2);
+		}
 	}, wrap->lifetime());
 
 	if (handleKeyboardSwitch) {

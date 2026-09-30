@@ -271,6 +271,13 @@ QByteArray Settings::serialize() const {
 			+ Serialize::bytearraySize(value);
 	}
 	size += sizeof(qint32); // _audioPlaybackSpeed
+	size += sizeof(qint32); // _chatListNewsFeed
+	size += sizeof(qint32); // newsFeedExcluded count
+	for (const auto &entry : _newsFeedExcluded) {
+		size += sizeof(quint64) // account id
+			+ sizeof(qint32) // peers count
+			+ sizeof(quint64) * entry.second.size();
+	}
 
 	auto result = QByteArray();
 	result.reserve(size);
@@ -447,7 +454,15 @@ QByteArray Settings::serialize() const {
 		stream << qint32(SerializePlaybackSpeed(_audioPlaybackSpeed.current()));
 		stream
 			<< qint32(_chatListCompactTopics.current() ? 1 : 0)
-			<< qint32(_chatListNoNestedTopics.current() ? 1 : 0);
+			<< qint32(_chatListNoNestedTopics.current() ? 1 : 0)
+			<< qint32(_chatListNewsFeed.current() ? 1 : 0)
+			<< qint32(int(_newsFeedExcluded.size()));
+		for (const auto &entry : _newsFeedExcluded) {
+			stream << quint64(entry.first) << qint32(entry.second.size());
+			for (const auto &peer : entry.second) {
+				stream << quint64(peer.value);
+			}
+		}
 	}
 
 	Ensures(result.size() == size);
@@ -965,12 +980,51 @@ void Settings::addFromSerialized(const QByteArray &serialized) {
 	if (!stream.atEnd()) {
 		qint32 chatListCompactTopics = 0;
 		qint32 chatListNoNestedTopics = 0;
+		qint32 chatListNewsFeed = 0;
+		qint32 newsFeedExcludedCount = 0;
 		stream
 			>> chatListCompactTopics
-			>> chatListNoNestedTopics;
+			>> chatListNoNestedTopics
+			>> chatListNewsFeed
+			>> newsFeedExcludedCount;
+		// Kotatogram: news feed exclusions, one entry per account.
+		constexpr auto kMaxAccounts = 64;
+		constexpr auto kMaxPeersPerAccount = 100000;
+		auto newsFeedExcluded = base::flat_map<uint64, std::vector<PeerId>>();
+		if (stream.status() == QDataStream::Ok
+			&& newsFeedExcludedCount >= 0
+			&& newsFeedExcludedCount <= kMaxAccounts) {
+			newsFeedExcluded.reserve(newsFeedExcludedCount);
+			for (auto i = 0; i != newsFeedExcludedCount; ++i) {
+				auto key = quint64();
+				auto peersCount = qint32();
+				stream >> key >> peersCount;
+				if (stream.status() != QDataStream::Ok
+					|| peersCount < 0
+					|| peersCount > kMaxPeersPerAccount) {
+					break;
+				}
+				auto peers = std::vector<PeerId>();
+				peers.reserve(peersCount);
+				for (auto j = 0; j != peersCount; ++j) {
+					auto value = quint64();
+					stream >> value;
+					if (stream.status() != QDataStream::Ok) {
+						break;
+					}
+					peers.push_back(PeerId(PeerIdHelper(value)));
+				}
+				if (stream.status() != QDataStream::Ok) {
+					break;
+				}
+				newsFeedExcluded[key] = std::move(peers);
+			}
+		}
 		if (stream.status() == QDataStream::Ok) {
 			_chatListCompactTopics = (chatListCompactTopics == 1);
 			_chatListNoNestedTopics = (chatListNoNestedTopics == 1);
+			_chatListNewsFeed = (chatListNewsFeed == 1);
+			_newsFeedExcluded = std::move(newsFeedExcluded);
 		}
 	}
 	if (stream.status() != QDataStream::Ok) {
@@ -1652,6 +1706,8 @@ void Settings::resetOnLastLogout() {
 	_chatFiltersHorizontal = false;
 	_chatListCompactTopics = false;
 	_chatListNoNestedTopics = false;
+	_chatListNewsFeed = true;
+	_newsFeedExcluded.clear();
 	_quickDialogAction = Dialogs::Ui::QuickDialogAction::Disabled;
 	_notificationsVolume = 100;
 
@@ -1869,6 +1925,28 @@ void Settings::setChatListCompactTopics(bool value) {
 
 void Settings::setChatListNoNestedTopics(bool value) {
 	_chatListNoNestedTopics = value;
+}
+
+void Settings::setChatListNewsFeed(bool value) {
+	_chatListNewsFeed = value;
+}
+
+std::vector<PeerId> Settings::newsFeedExcluded(uint64 accountId) const {
+	const auto i = _newsFeedExcluded.find(accountId);
+	return (i == end(_newsFeedExcluded))
+		? std::vector<PeerId>()
+		: i->second;
+}
+
+void Settings::setNewsFeedExcluded(
+		uint64 accountId,
+		std::vector<PeerId> value) {
+	if (value.empty()) {
+		_newsFeedExcluded.remove(accountId);
+	} else {
+		_newsFeedExcluded[accountId] = std::move(value);
+	}
+	_saveDelayed.fire({});
 }
 
 Dialogs::Ui::QuickDialogAction Settings::quickDialogAction() const {

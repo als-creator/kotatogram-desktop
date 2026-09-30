@@ -51,6 +51,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/ui_utility.h"
 #include "ui/widgets/menu/menu_add_action_callback.h"
 #include "history/view/history_view_quick_action.h"
+#include "kotato/kotato_lang.h"
 #include "lang/lang_keys.h"
 #include "lottie/lottie_icon.h"
 #include "export/export_manager.h"
@@ -939,6 +940,76 @@ void BuildChatListQuickActionSection(SectionBuilder &builder) {
 	});
 }
 
+void BuildChatListOptionsSection(SectionBuilder &builder) {
+	const auto controller = builder.controller();
+
+	builder.add(nullptr, [] {
+		return SearchEntry{
+			.id = u"chat/list-options"_q,
+			.title = u"Chat list options"_q,
+			.keywords = { u"chat"_q, u"list"_q, u"options"_q },
+			.icon = { &st::menuIconChats },
+		};
+	});
+
+	builder.addSkip(st::settingsCheckboxesSkip);
+
+	// Kotatogram-changed: a compact topic list for the topics nested in an
+	// opened forum, independent of the compact chat list.
+	const auto compactTopics = builder.addCheckbox({
+		.id = u"chat/compact-topics"_q,
+		.title = rpl::single(u"Compact topic list in nested chats"_q),
+		.checked = Core::App().settings().chatListCompactTopics(),
+		.keywords = { u"compact"_q, u"topics"_q, u"forum"_q },
+	});
+	if (compactTopics) {
+		compactTopics->checkedChanges(
+		) | rpl::on_next([=](bool checked) {
+			Core::App().settings().setChatListCompactTopics(checked);
+		}, compactTopics->lifetime());
+	}
+
+	// Kotatogram-changed: open a forum as a plain chat instead of popping
+	// its topic list over the chats list. This is the unified chat, the
+	// whole chat is one feed of the messages of all its topics.
+	const auto noNestedTopics = builder.addCheckbox({
+		.id = u"chat/unified-forum"_q,
+		.title = rpl::single(
+			u"Unified chat: open forums as one message feed"_q),
+		.checked = Core::App().settings().chatListNoNestedTopics(),
+		.keywords = {
+			u"unified"_q,
+			u"forum"_q,
+			u"topics"_q,
+			u"nested"_q,
+			u"feed"_q,
+		},
+	});
+	if (noNestedTopics) {
+		noNestedTopics->checkedChanges(
+		) | rpl::on_next([=](bool checked) {
+			Core::App().settings().setChatListNoNestedTopics(checked);
+		}, noNestedTopics->lifetime());
+	}
+
+	// Kotatogram-changed: a built-in "News feed" tab with all broadcast
+	// channels, include/exclude is configured from its context menu.
+	const auto newsFeed = builder.addCheckbox({
+		.id = u"chat/news-feed"_q,
+		.title = rpl::single(ktr("ktg_news_feed_toggle")),
+		.checked = Core::App().settings().chatListNewsFeed(),
+		.keywords = { u"news"_q, u"feed"_q, u"channels"_q, u"broadcast"_q },
+	});
+	if (newsFeed) {
+		newsFeed->checkedChanges(
+		) | rpl::on_next([=](bool checked) {
+			controller->session().data().chatsFilters().setNewsFeedEnabled(checked);
+		}, newsFeed->lifetime());
+	}
+
+	builder.addSkip(st::settingsCheckboxesSkip);
+}
+
 void BuildStickersEmojiSection(SectionBuilder &builder) {
 	const auto controller = builder.controller();
 	const auto highlights = builder.highlights();
@@ -1038,38 +1109,6 @@ void BuildStickersEmojiSection(SectionBuilder &builder) {
 			.icon = { &st::menuIconEmoji },
 		};
 	});
-
-	builder.addSkip(st::settingsCheckboxesSkip);
-
-	// Kotatogram-changed: a compact topic list for the topics nested in an
-	// opened forum, independent of the compact chat list.
-	const auto compactTopics = builder.addCheckbox({
-		.id = u"chat/compact-topics"_q,
-		.title = rpl::single(u"Compact topic list in nested chats"_q),
-		.checked = Core::App().settings().chatListCompactTopics(),
-		.keywords = { u"compact"_q, u"topics"_q, u"forum"_q },
-	});
-	if (compactTopics) {
-		compactTopics->checkedChanges(
-		) | rpl::on_next([=](bool checked) {
-			Core::App().settings().setChatListCompactTopics(checked);
-		}, compactTopics->lifetime());
-	}
-
-	// Kotatogram-changed: open a forum as a plain chat instead of popping
-	// its topic list over the chats list.
-	const auto noNestedTopics = builder.addCheckbox({
-		.id = u"chat/unified-forum"_q,
-		.title = rpl::single(u"Unified chat: open forums as plain chats"_q),
-		.checked = Core::App().settings().chatListNoNestedTopics(),
-		.keywords = { u"unified"_q, u"forum"_q, u"topics"_q, u"nested"_q },
-	});
-	if (noNestedTopics) {
-		noNestedTopics->checkedChanges(
-		) | rpl::on_next([=](bool checked) {
-			Core::App().settings().setChatListNoNestedTopics(checked);
-		}, noNestedTopics->lifetime());
-	}
 
 	builder.addSkip(st::settingsCheckboxesSkip);
 }
@@ -1334,6 +1373,7 @@ void BuildChatSectionContent(SectionBuilder &builder) {
 	BuildCloudThemesSection(builder);
 	BuildChatBackgroundSection(builder);
 	BuildChatListQuickActionSection(builder);
+	BuildChatListOptionsSection(builder);
 	BuildStickersEmojiSection(builder);
 	BuildMessagesSection(builder);
 	BuildSensitiveContentSection(builder);

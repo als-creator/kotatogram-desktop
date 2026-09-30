@@ -221,20 +221,27 @@ void FiltersMenu::refresh() {
 	_reorder->cancel();
 
 	_reorder->clearPinnedIntervals();
+	// Kotatogram: the built-in news feed tab takes no folder slot, so all
+	// index-based limits below are shifted by it and it is never locked.
+	const auto newsOffset = filters->newsFeedOffset();
 	const auto maxLimit = (reorderAll ? 1 : 0)
 		+ Data::PremiumLimits(&_session->session()).dialogFiltersCurrent();
-	const auto premiumFrom = (reorderAll ? 0 : 1) + maxLimit;
+	const auto premiumFrom = (reorderAll ? 0 : 1) + maxLimit + newsOffset;
 	if (!reorderAll) {
 		_reorder->addPinnedInterval(0, 1);
 	}
+	if (newsOffset) {
+		_reorder->addPinnedInterval(1, 1);
+	}
 	_reorder->addPinnedInterval(
 		premiumFrom,
-		std::max(1, int(filters->list().size()) - maxLimit));
+		std::max(1, int(filters->list().size()) - maxLimit - newsOffset));
 
 	auto now = base::flat_map<int, base::unique_qptr<Ui::SideBarButton>>();
 	const auto &currentFilter = _session->activeChatsFilterCurrent();
 	for (const auto &filter : filters->list()) {
-		const auto nextIsLocked = (now.size() >= premiumFrom);
+		const auto nextIsLocked = (filter.id() != kNewsFeedFilterId)
+			&& (now.size() >= premiumFrom);
 		if (nextIsLocked && (currentFilter == filter.id())) {
 			_session->setActiveChatsFilter(FilterId(0));
 		}
@@ -330,7 +337,9 @@ base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareButton(
 		? icon
 		: Ui::FilterIcon::All);
 	raw->setIconOverride(icons.normal, icons.active);
-	if (id >= 0) {
+	// Kotatogram: the built-in news feed tab shows the same unread badge
+	// as in the tabs strip, so that both counters stay in sync.
+	if (id >= 0 || id == kNewsFeedFilterId) {
 		rpl::combine(
 			Data::UnreadStateValue(&_session->session(), id),
 			Data::IncludeMutedCounterFoldersValue()
@@ -367,10 +376,10 @@ base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareButton(
 				FiltersLimitBox,
 				&_session->session(),
 				std::nullopt));
-		} else if (id >= 0) {
-			_session->setActiveChatsFilter(id);
-		} else {
+		} else if (id == -1) {
 			openFiltersSettings();
+		} else {
+			_session->setActiveChatsFilter(id);
 		}
 	});
 	if (id >= -1) {
