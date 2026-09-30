@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "dialogs/dialogs_row.h"
 
+#include "core/application.h"
 #include "kotato/kotato_radius.h"
 #include "kotato/kotato_settings.h"
 #include "ui/chat/chat_theme.h" // CountAverageColor.
@@ -303,7 +304,16 @@ Row::~Row() {
 const style::DialogRow &Row::ComputeSt(
 		not_null<const Entry*> entry,
 		FilterId filterId) {
-	if (::Kotato::JsonSettings::GetInt("chat_list_lines") == 1) {
+	const auto &settings = Core::App().settings();
+	const auto compact = (::Kotato::JsonSettings::GetInt("chat_list_lines") == 1);
+	if (entry->asTopic()) {
+		// Kotatogram-changed: the compact chat list covers the nested topic
+		// list as well, the separate option enables it on its own.
+		return (compact || settings.chatListCompactTopics())
+			? st::compactForumTopicRow
+			: st::forumTopicRow;
+	}
+	if (compact) {
 		return st::compactDialogRow;
 	}
 	if (const auto history = entry->asHistory()) {
@@ -315,8 +325,6 @@ const style::DialogRow &Row::ComputeSt(
 			: hasTags
 			? st::taggedDialogRow
 			: st::defaultDialogRow;
-	} else if (entry->asTopic()) {
-		return st::forumTopicRow;
 	}
 	return st::defaultDialogRow;
 }
@@ -325,6 +333,8 @@ void Row::recountHeight(float64 narrowRatio, FilterId filterId) {
 	const auto &st = ComputeSt(_id.entry(), filterId);
 	_height = (&st == &st::compactDialogRow)
 		? st::compactDialogRow.height
+		: (&st == &st::compactForumTopicRow) // Kotatogram-changed.
+		? st::compactForumTopicRow.height
 		: ((&st == &st::defaultDialogRow) || !_id.history())
 		? st::defaultDialogRow.height
 		: anim::interpolate(
