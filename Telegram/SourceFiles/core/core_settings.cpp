@@ -445,6 +445,9 @@ QByteArray Settings::serialize() const {
 			stream << key << value;
 		}
 		stream << qint32(SerializePlaybackSpeed(_audioPlaybackSpeed.current()));
+		stream
+			<< qint32(_chatListCompactTopics.current() ? 1 : 0)
+			<< qint32(_chatListNoNestedTopics.current() ? 1 : 0);
 	}
 
 	Ensures(result.size() == size);
@@ -957,6 +960,17 @@ void Settings::addFromSerialized(const QByteArray &serialized) {
 		stream >> speed;
 		if (stream.status() == QDataStream::Ok) {
 			audioPlaybackSpeed = speed;
+		}
+	}
+	if (!stream.atEnd()) {
+		qint32 chatListCompactTopics = 0;
+		qint32 chatListNoNestedTopics = 0;
+		stream
+			>> chatListCompactTopics
+			>> chatListNoNestedTopics;
+		if (stream.status() == QDataStream::Ok) {
+			_chatListCompactTopics = (chatListCompactTopics == 1);
+			_chatListNoNestedTopics = (chatListNoNestedTopics == 1);
 		}
 	}
 	if (stream.status() != QDataStream::Ok) {
@@ -1636,6 +1650,8 @@ void Settings::resetOnLastLogout() {
 	_recordVideoMessages = false;
 	_videoQuality = {};
 	_chatFiltersHorizontal = false;
+	_chatListCompactTopics = false;
+	_chatListNoNestedTopics = false;
 	_quickDialogAction = Dialogs::Ui::QuickDialogAction::Disabled;
 	_notificationsVolume = 100;
 
@@ -1845,6 +1861,14 @@ rpl::producer<bool> Settings::chatFiltersHorizontalChanges() const {
 
 void Settings::setChatFiltersHorizontal(bool value) {
 	_chatFiltersHorizontal = value;
+}
+
+void Settings::setChatListCompactTopics(bool value) {
+	_chatListCompactTopics = value;
+}
+
+void Settings::setChatListNoNestedTopics(bool value) {
+	_chatListNoNestedTopics = value;
 }
 
 Dialogs::Ui::QuickDialogAction Settings::quickDialogAction() const {
