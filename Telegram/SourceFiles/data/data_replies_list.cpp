@@ -10,6 +10,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history.h"
 #include "history/history_item.h"
 #include "history/history_item_helpers.h"
+#include "history/view/history_view_element.h"
 #include "main/main_session.h"
 #include "data/data_histories.h"
 #include "data/data_session.h"
@@ -46,6 +47,36 @@ constexpr auto kMaxMessagesToDeleteMyTopic = 10;
 		return forum->creating(rootId);
 	}
 	return false;
+}
+
+// Kotatogram-changed: with the "unified chat" option a forum is opened as
+// a plain chat, so the messages of every topic are read from the common feed
+// of the chat and the list of messages of a single topic is never loaded.
+// Count the messages of one topic that are still after the read position
+// in that feed, so the counter of the topic follows the read position the
+// same way it does in a plain chat.
+[[nodiscard]] int CountUnreadAfterInFeed(
+		not_null<History*> history,
+		MsgId topicRootId,
+		MsgId afterId) {
+	if (!topicRootId) {
+		return 0;
+	}
+	auto result = 0;
+	for (const auto &block : history->blocks) {
+		for (const auto &element : block->messages) {
+			const auto message = element->data();
+			if (!message->isRegular()
+				|| message->topicRootId() != topicRootId
+				|| message->out()) {
+				continue;
+			}
+			if (message->id > afterId) {
+				++result;
+			}
+		}
+	}
+	return result;
 }
 
 } // namespace
@@ -902,6 +933,30 @@ std::optional<int> RepliesList::computeUnreadCountLocally(
 		return int(ranges::lower_bound(_list, readTillId, std::greater<>())
 			- begin(_list));
 	} else if (_list.empty()) {
+		// Kotatogram-changed: with the "unified chat" option a forum topic
+		// is read from the common feed of the chat, so the topic's own list
+		// of messages is never loaded and there is nothing to count locally.
+		// Without this the count of the topic becomes "unknown" here, the
+		// counter is dropped to zero and is then restored from the server
+		// that still counts from the old read position, so the topic list,
+		// the chat list and the unified chat show different numbers.
+		const auto forum = _history->asForum();
+		if (forum
+			&& forum->topicFor(_rootId)
+			&& wasUnreadCountAfter.has_value()) {
+			// The messages crossed by the new read position are exactly the
+			// ones loaded in the feed, so the server value only has to be
+			// corrected by their difference.
+			return std::max(*wasUnreadCountAfter
+				- CountUnreadAfterInFeed(
+					_history,
+					_rootId,
+					wasReadTillId)
+				+ CountUnreadAfterInFeed(
+					_history,
+					_rootId,
+					readTillId), 0);
+		}
 		return std::nullopt;
 	} else if (wasUnreadCountAfter.has_value()
 		&& (frontLoaded || readTillId <= _list.front())
