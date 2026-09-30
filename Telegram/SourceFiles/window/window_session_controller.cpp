@@ -741,7 +741,11 @@ void SessionNavigation::showPeerByLinkResolved(
 			if (controller->windowId().hasChatsList()
 				&& !controller->adaptive().isOneColumn()
 				&& controller->shownForum().current() != forum
-				&& !forum->peer()->useSubsectionTabs()) {
+				&& !forum->peer()->useSubsectionTabs()
+				// Kotatogram-changed: the "unified chat" option must not open
+				// the topic list over the chats list, same as it does not
+				// for a click on the forum row itself.
+				&& !Core::App().settings().chatListNoNestedTopics()) {
 				controller->showForum(forum);
 			}
 		}
@@ -2279,6 +2283,15 @@ void SessionController::showForum(
 			}, _shownForumLifetime);
 		}
 	}
+}
+
+void SessionController::showForumAsMessages(not_null<PeerData*> peer) {
+	if (const auto forum = peer->forum()) {
+		if (!peer->viewForumAsMessages()) {
+			peer->owner().saveViewAsMessages(forum, true);
+		}
+	}
+	showPeerHistory(peer->id);
 }
 
 void SessionController::closeForum() {

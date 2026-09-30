@@ -917,7 +917,11 @@ void Widget::chosenRow(const ChosenRow &row) {
 		} else if (row.newWindow) {
 			controller()->showInNewWindow(Window::SeparateId(topicJump));
 		} else {
-			if (!controller()->adaptive().isOneColumn()
+			// Kotatogram-changed: the "unified chat" option opens the topic
+			// itself instead of popping the topic list over the chats
+			// list.
+			if (!Core::App().settings().chatListNoNestedTopics()
+				&& !controller()->adaptive().isOneColumn()
 				&& !topicJump->peer()->useSubsectionTabs()) {
 				controller()->showForum(
 					topicJump->forum(),
@@ -957,6 +961,22 @@ void Widget::chosenRow(const ChosenRow &row) {
 		&& history->peer->hasActiveStories()
 		&& !history->peer->isSelf()) {
 		controller()->openPeerStories(history->peer->id);
+		return;
+	} else if (history
+		&& history->isForum()
+		&& !row.message.fullId
+		&& Core::App().settings().chatListNoNestedTopics()) {
+		// Kotatogram-changed: the "unified chat" option uses the same switch
+		// as the "View as Messages" item of the chat menu, so the server
+		// side state and the unread counters stay the same as when the
+		// mode is picked there.
+		if (row.newWindow) {
+			controller()->showInNewWindow(Window::SeparateId(
+				Window::SeparateType::Chat,
+				history));
+		} else {
+			controller()->showForumAsMessages(history->peer);
+		}
 		return;
 	} else if (history
 		&& history->isForum()
