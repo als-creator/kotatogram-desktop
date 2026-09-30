@@ -68,6 +68,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/file_utilities.h"
 #include "core/application.h"
 #include "core/core_settings.h"
+#include "data/data_chat_filters.h"
 #include "data/data_session.h"
 #include "data/data_cloud_themes.h"
 #include "data/data_file_origin.h"

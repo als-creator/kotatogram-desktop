@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "dialogs/dialogs_row.h"
 
 #include "core/application.h"
+#include "core/core_settings.h"
 #include "kotato/kotato_radius.h"
 #include "kotato/kotato_settings.h"
 #include "ui/chat/chat_theme.h" // CountAverageColor.
