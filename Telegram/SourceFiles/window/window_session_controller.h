@@ -461,6 +461,7 @@ public:
 		not_null<Data::Forum*> forum,
 		const SectionShow &params = SectionShow::Way::ClearStack,
 		MsgId showAtMsgId = ShowAtUnreadMsgId);
+	void showForumAsMessages(not_null<PeerData*> peer);
 	void closeForum();
 	const rpl::variable<Data::Forum*> &shownForum() const;
 
