@@ -108,6 +108,16 @@ namespace {
 		: &st::defaultDialogRow;
 }
 
+[[nodiscard]] const style::DialogRow *ForumTopicRowStyle() {
+	// Kotatogram-changed: the compact chat list covers the nested topic list
+	// as well, the separate option enables it without compacting the chats
+	// list.
+	const auto compact = (::Kotato::JsonSettings::GetInt("chat_list_lines") == 1);
+	return (compact || Core::App().settings().chatListCompactTopics())
+		? &st::compactForumTopicRow
+		: &st::forumTopicRow;
+}
+
 constexpr auto kFreezeTimeout = 2 * crl::time(1000);
 constexpr auto kHashtagResultsLimit = 5;
 constexpr auto kStartReorderThreshold = 30;
@@ -403,7 +413,18 @@ InnerWidget::InnerWidget(
 	::Kotato::JsonSettings::Events(
 		"chat_list_lines"
 	) | rpl::on_next([=] {
-		_st = _openedForum ? &st::forumTopicRow : DefaultRowStyle();
+		_st = _openedForum ? ForumTopicRowStyle() : DefaultRowStyle();
+		_narrowWidth = DefaultRowStyle()->padding.left()
+			+ DefaultRowStyle()->photoSize
+			+ DefaultRowStyle()->padding.left();
+		_shownList->updateHeights(_narrowRatio);
+		refreshWithCollapsedRows();
+	}, lifetime());
+
+	// Kotatogram-changed: the compact topic list in nested chats.
+	Core::App().settings().chatListCompactTopicsChanges(
+	) | rpl::on_next([=] {
+		_st = _openedForum ? ForumTopicRowStyle() : DefaultRowStyle();
 		_narrowWidth = DefaultRowStyle()->padding.left()
 			+ DefaultRowStyle()->photoSize
 			+ DefaultRowStyle()->padding.left();
@@ -817,7 +838,7 @@ void InnerWidget::changeOpenedForum(Data::Forum *forum) {
 		session().data().forumIcons().scheduleUserpicsReset(_openedForum);
 	}
 	_openedForum = forum;
-	_st = forum ? &st::forumTopicRow : DefaultRowStyle();
+	_st = forum ? ForumTopicRowStyle() : DefaultRowStyle();
 	refreshShownList();
 
 	_openedForumLifetime.destroy();
@@ -1113,7 +1134,7 @@ void InnerWidget::paintEvent(QPaintEvent *e) {
 	} else if (_state == WidgetState::Filtered) {
 		if (_searchTags) {
 			paintSearchTags(p, {
-				.st = &st::forumTopicRow,
+				.st = ForumTopicRowStyle(),
 				.currentBg = currentBg(),
 				.now = ms,
 				.width = fullWidth,

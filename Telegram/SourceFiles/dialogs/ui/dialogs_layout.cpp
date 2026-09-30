@@ -54,6 +54,13 @@ namespace Dialogs::Ui {
 
 const char kOptionDialogsMuteIcon[] = "dialogs-mute-icon";
 
+[[nodiscard]] bool IsCompactRowStyle(const style::DialogRow *rowStyle) {
+	// Kotatogram-changed: the compact topic row is painted the same single
+	// line way as the compact chat row.
+	return (rowStyle == &st::compactDialogRow)
+		|| (rowStyle == &st::compactForumTopicRow);
+}
+
 namespace {
 
 base::options::toggle DialogsMuteIcon({
@@ -116,7 +123,7 @@ int PaintRightButtonImpl(QPainter &p, const PaintContext &context) {
 		const auto left = context.width
 			- size.width()
 			- rightButton->st->margin.right();
-		const auto top = (context.st == &st::compactDialogRow)
+		const auto top = IsCompactRowStyle(context.st)
 			? (context.st->height - size.height()) / 2
 			: rightButton->st->margin.top();
 		p.drawImage(
@@ -505,7 +512,7 @@ void PaintRow(
 			videoUserpic,
 			context,
 			(context.narrow
-				&& (context.st != &st::compactDialogRow)
+				&& !IsCompactRowStyle(context.st)
 				&& !badgesState.empty()
 				&& !draft
 				&& item
@@ -520,7 +527,7 @@ void PaintRow(
 		if (!draft
 			&& item
 			&& !item->isEmpty()
-			&& (context.st != &st::compactDialogRow)) {
+			&& !IsCompactRowStyle(context.st)) {
 			PaintNarrowCounter(p, context, badgesState);
 		}
 		return;
@@ -572,7 +579,7 @@ void PaintRow(
 		}
 	}
 	auto texttop = context.st->textTop;
-	if (context.st == &st::compactDialogRow) {
+	if (IsCompactRowStyle(context.st)) {
 		// Compact chat list: single line, no message preview, counter only.
 		// Name shares the line with the counter, so shrink it accordingly.
 		const auto displayPinnedIcon = badgesState.empty()
