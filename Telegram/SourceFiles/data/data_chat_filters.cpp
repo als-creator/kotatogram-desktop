@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_chat_filters.h"
 
 #include "core/application.h"
+#include "core/core_settings.h"
 #include "kotato/kotato_lang.h"
 #include "kotato/kotato_settings.h"
 #include "api/api_text_entities.h"
