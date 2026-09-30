@@ -1038,6 +1038,40 @@ void BuildStickersEmojiSection(SectionBuilder &builder) {
 			.icon = { &st::menuIconEmoji },
 		};
 	});
+
+	builder.addSkip(st::settingsCheckboxesSkip);
+
+	// Kotatogram-changed: a compact topic list for the topics nested in an
+	// opened forum, independent of the compact chat list.
+	const auto compactTopics = builder.addCheckbox({
+		.id = u"chat/compact-topics"_q,
+		.title = rpl::single(u"Compact topic list in nested chats"_q),
+		.checked = Core::App().settings().chatListCompactTopics(),
+		.keywords = { u"compact"_q, u"topics"_q, u"forum"_q },
+	});
+	if (compactTopics) {
+		compactTopics->checkedChanges(
+		) | rpl::on_next([=](bool checked) {
+			Core::App().settings().setChatListCompactTopics(checked);
+		}, compactTopics->lifetime());
+	}
+
+	// Kotatogram-changed: open a forum as a plain chat instead of popping
+	// its topic list over the chats list.
+	const auto noNestedTopics = builder.addCheckbox({
+		.id = u"chat/unified-forum"_q,
+		.title = rpl::single(u"Unified chat: open forums as plain chats"_q),
+		.checked = Core::App().settings().chatListNoNestedTopics(),
+		.keywords = { u"unified"_q, u"forum"_q, u"topics"_q, u"nested"_q },
+	});
+	if (noNestedTopics) {
+		noNestedTopics->checkedChanges(
+		) | rpl::on_next([=](bool checked) {
+			Core::App().settings().setChatListNoNestedTopics(checked);
+		}, noNestedTopics->lifetime());
+	}
+
+	builder.addSkip(st::settingsCheckboxesSkip);
 }
 
 void BuildMessagesSection(SectionBuilder &builder) {
