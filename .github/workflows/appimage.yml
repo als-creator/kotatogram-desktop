@@ -109,7 +109,7 @@ jobs:
           $API_ARGS \
           -D KTGDESKTOP_BUILD_NUMBER=${{ github.run_number }} \
           -D DESKTOP_APP_DISABLE_AUTOUPDATE=OFF \
-          -D DESKTOP_APP_DISABLE_CRASH_REPORTS=OFF
+          -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON
 
       - name: Check binaries.
         run: |
