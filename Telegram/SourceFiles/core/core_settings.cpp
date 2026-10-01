@@ -271,6 +271,8 @@ QByteArray Settings::serialize() const {
 			+ Serialize::bytearraySize(value);
 	}
 	size += sizeof(qint32); // _audioPlaybackSpeed
+	size += sizeof(qint32); // _chatListCompactTopics
+	size += sizeof(qint32); // _chatListNoNestedTopics
 	size += sizeof(qint32); // _chatListNewsFeed
 	size += sizeof(qint32); // newsFeedExcluded count
 	for (const auto &entry : _newsFeedExcluded) {
