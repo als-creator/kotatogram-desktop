@@ -587,9 +587,23 @@ void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
 			// Kotatogram: no slideFromBottom here, its SectionShow has no
 			// such hint, so the feed continues with the standard
 			// transition while AyuGram slides the next channel in.
-			auto params = Window::SectionShow(
-				Window::SectionShow::Way::ClearStack);
-			_controller->showPeerHistory(not_null<History*>(history), params);
+			//
+			// The jump is postponed, because this runs from inside the
+			// scroll stream of this very widget, while Qt is still
+			// dispatching an event to it. showHistory() rebuilds the
+			// owned HistoryInner and QScrollArea::setWidget() deletes
+			// the previous one, which is this widget: switching right
+			// here freed it before Qt was done with the dispatch, and the
+			// freed memory was walked as an event filter list later on,
+			// crashing on the next chat open.
+			// The guard drops the call if this widget dies first.
+			const auto target = not_null<History*>(history);
+			const auto controller = _controller;
+			Ui::PostponeCall(crl::guard(this, [=] {
+				auto params = Window::SectionShow(
+					Window::SectionShow::Way::ClearStack);
+				controller->showPeerHistory(target, params);
+			}));
 			return;
 		}
 	}
