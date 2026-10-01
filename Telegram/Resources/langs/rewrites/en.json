@@ -207,5 +207,7 @@
 	"ktg_news_feed_hide": "Hide tab",
 	"ktg_news_feed_edit_title": "News feed channels",
 	"ktg_news_feed_edit_about": "Channels with a checkmark are shown in the news feed tab.",
+	"ktg_tab_context_make_default": "Make this tab the main one",
+	"ktg_tab_context_reset_default": "Reset the main tab",
 	"dummy_last_string": ""
 }

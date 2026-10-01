@@ -156,5 +156,7 @@
 	"ktg_reminder_preview": "Remind with preview",
 	"ktg_schedule_preview": "Send preview scheduled",
 	"ktg_language_reloaded": "Kotatogram-specific language strings were reloaded.",
+	"ktg_tab_context_make_default": "Make this tab the main one",
+	"ktg_tab_context_reset_default": "Reset the main tab",
 	"dummy_last_string": ""
 }

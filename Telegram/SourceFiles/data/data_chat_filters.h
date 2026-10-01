@@ -264,6 +264,13 @@ public:
 	// can be shifted by it.
 	[[nodiscard]] int newsFeedOffset() const;
 
+	// Kotatogram: the tab that is marked as the main one. It is opened
+	// when the chat list is shown and the user is returned to it when
+	// leaving a chat. Any tab may be the main one, including the news
+	// feed tab, so the stored value is validated against the list.
+	[[nodiscard]] FilterId primaryId() const;
+	void setPrimaryId(FilterId id);
+
 private:
 	struct MoreChatsData {
 		std::vector<not_null<PeerData*>> missing;

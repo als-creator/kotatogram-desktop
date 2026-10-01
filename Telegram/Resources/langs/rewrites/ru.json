@@ -263,5 +263,7 @@
 	"ktg_news_feed_hide": "Скрыть вкладку",
 	"ktg_news_feed_edit_title": "Каналы новостной ленты",
 	"ktg_news_feed_edit_about": "Каналы с галочкой показываются во вкладке «Новостные каналы».",
+	"ktg_tab_context_make_default": "Сделать вкладку основной",
+	"ktg_tab_context_reset_default": "Сбросить основную вкладку",
 	"dummy_last_string": ""
 }

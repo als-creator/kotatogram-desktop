@@ -2563,7 +2563,6 @@ void Widget::slideFinished() {
 
 void Widget::escape() {
 	if (!cancelSearch({ .jumpBackToSearchedChat = true })) {
-		const auto defaultFilterId = session().account().defaultFilterId();
 		if (const auto forum = controller()->shownForum().current()) {
 			const auto id = controller()->windowId();
 			const auto initial = id.forum();
@@ -2581,11 +2580,10 @@ void Widget::escape() {
 		} else if (controller()->isPrimary()) {
 			const auto filters = &session().data().chatsFilters();
 			const auto &list = filters->list();
+			// Kotatogram: return to the tab marked as the main one.
 			const auto first = list.empty()
 				? FilterId()
-				: defaultFilterId != 0
-				? defaultFilterId
-				: list.front().id();
+				: filters->primaryId();
 			if (controller()->activeChatsFilterCurrent() != first) {
 				controller()->setActiveChatsFilter(first);
 			}

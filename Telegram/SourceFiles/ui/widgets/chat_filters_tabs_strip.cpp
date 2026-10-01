@@ -80,6 +80,25 @@ void ShowMenu(
 		st::popupMenuWithIcons);
 	const auto addAction = Ui::Menu::CreateAddActionCallback(
 		state->menu.get());
+	const auto tabsFilters = &session->data().chatsFilters();
+
+	// Kotatogram: "make this tab the main one". It is offered for the news
+	// feed tab and for the real folders, and it is reset from the "All" tab.
+	const auto primaryId = tabsFilters->primaryId();
+	const auto setPrimary = [=](FilterId value) {
+		tabsFilters->setPrimaryId(value);
+	};
+	if (id && id != primaryId) {
+		addAction(
+			ktr("ktg_tab_context_make_default"),
+			[=] { setPrimary(id); },
+			&st::menuIconFave);
+	} else if (primaryId) {
+		addAction(
+			ktr("ktg_tab_context_reset_default"),
+			[=] { setPrimary(FilterId()); },
+			&st::menuIconUnfave);
+	}
 
 	if (id == kNewsFeedFilterId) {
 		addAction(

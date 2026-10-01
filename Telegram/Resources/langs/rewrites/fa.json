@@ -173,5 +173,7 @@
 	"ktg_settings_remember_compress_images": "بخاطر سپردن فشرده سازی تصاویر",
 	"ktg_settings_compress_images_default": "فشرده سازی تصاویر به صورت پیش فرض",
 	"ktg_pip_not_supported": "متأسفیم، حالت تصویر در تصویر در اینجا پشتیبانی نمی شود.",
+	"ktg_tab_context_make_default": "Make this tab the main one",
+	"ktg_tab_context_reset_default": "Reset the main tab",
 	"dummy_last_string": ""
 }

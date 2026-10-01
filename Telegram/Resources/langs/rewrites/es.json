@@ -156,5 +156,7 @@
 	"ktg_reminder_preview": "Recordar con vista previa",
 	"ktg_schedule_preview": "Enviar vista previa programada",
 	"ktg_language_reloaded": "Se actualizaron las cadenas de idioma específicas de Kotatogram.",
+	"ktg_tab_context_make_default": "Make this tab the main one",
+	"ktg_tab_context_reset_default": "Reset the main tab",
 	"dummy_last_string": ""
 }
