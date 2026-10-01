@@ -58,10 +58,6 @@ struct State final {
 
 	std::unique_ptr<Ui::ChatsFiltersTabsReorder> reorder;
 	bool ignoreRefresh = false;
-
-	// Kotatogram: the button that shows / hides the built-in news feed
-	// tab, it is placed at the right end of the tabs row.
-	object_ptr<Ui::IconButton> newsFeedButton = nullptr;
 };
 
 void ShowMenu(
@@ -264,15 +260,12 @@ not_null<Ui::RpWidget*> AddChatFiltersTabsStrip(
 	// Kotatogram: a visible button that shows / hides the built-in news
 	// feed tab. It is created only for the chats list, which is the only
 	// place where the tab can be reached, so that the other users of the
-	// strip (share box, peer menu) are not affected.
-	const auto newsFeedButton = [&] -> Ui::IconButton* {
-		if (!trackActiveFilterAndUnreadAndReorder) {
-			return nullptr;
-		}
-		const auto owned = object_ptr<Ui::IconButton>(
-			container,
-			st::newsFeedToggle);
-		const auto button = owned.get();
+	// strip (share box, peer menu) are not affected. The container is its
+	// parent, so it lives and dies with the strip.
+	Ui::IconButton *newsFeedButton = nullptr;
+	if (trackActiveFilterAndUnreadAndReorder) {
+		newsFeedButton = new Ui::IconButton(container, st::newsFeedToggle);
+		const auto button = newsFeedButton;
 		button->setIconOverride(
 			&st::menuIconChannel,
 			&st::menuIconChannel);
@@ -303,9 +296,7 @@ not_null<Ui::RpWidget*> AddChatFiltersTabsStrip(
 		) | rpl::on_next(updateButton, wrap->lifetime());
 		updateButton();
 		button->show();
-		state->newsFeedButton = std::move(owned);
-		return button;
-	}();
+	}
 	const auto reassignUnreadValue = [=] {
 		state->reorderLifetime.destroy();
 		const auto &list = session->data().chatsFilters().list();
