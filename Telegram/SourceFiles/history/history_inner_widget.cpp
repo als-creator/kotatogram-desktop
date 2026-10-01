@@ -15,8 +15,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/file_utilities.h"
 #include "core/click_handler_types.h"
 #include "core/phone_click_handler.h"
+#include "data/data_chat_filters.h" // kNewsFeedFilterId.
 #include "data/data_chat_participant_status.h"
+#include "data/data_peer.h"
+#include "dialogs/dialogs_indexed_list.h"
+#include "dialogs/dialogs_main_list.h"
+#include "dialogs/dialogs_row.h"
 #include "history/history_item_helpers.h"
+#include "ui/widgets/elastic_scroll.h"
 #include "history/view/controls/history_view_forward_panel.h"
 #include "history/view/controls/history_view_draft_options.h"
 #include "history/view/controls/history_view_suggest_options.h"
@@ -453,6 +459,12 @@ HistoryInner::HistoryInner(
 	) | rpl::on_next([=] {
 		update();
 	}, lifetime());
+	// Kotatogram: continue the news feed automatically. The default
+	// behaviour, it is not guarded by a setting.
+	_scroll->positionValue(
+	) | rpl::on_next([=](Ui::ElasticScrollPosition position) {
+		checkAutoAdvanceNextChannel(position.value);
+	}, lifetime());
 	session().data().itemRemoved(
 	) | rpl::on_next(
 		[this](auto item) { itemRemoved(item); },
@@ -534,6 +546,52 @@ HistoryInner::HistoryInner(
 
 	setupSharingDisallowed();
 	setupSwipeReplyAndBack();
+}
+
+void HistoryInner::checkAutoAdvanceNextChannel(int position) {
+	// Kotatogram: on the built-in "News feed" tab the feed continues by
+	// itself. Reaching the very end of a channel opens the next unread
+	// channel of the feed.
+	if (_controller->activeChatsFilterCurrent() != kNewsFeedFilterId
+		|| !_peer->isBroadcast()) {
+		return;
+	}
+	// Arm on the first move away from the end and fire only on the way
+	// back, so that opening a channel at its newest message (which lands
+	// at the bottom right away) does not walk the whole feed away.
+	const auto max = _scroll->scrollTopMax();
+	if (!max) {
+		return;
+	} else if (position < max) {
+		_autoAdvanceArmed = true;
+		return;
+	} else if (!_autoAdvanceArmed || !_history->loadedAtBottom()) {
+		return;
+	}
+	// One jump per arming, otherwise a channel opened at the bottom
+	// would chain into the next one and the next one.
+	_autoAdvanceArmed = false;
+	const auto list = _controller->session().data().chatsFilters().chatsList(
+		kNewsFeedFilterId);
+	for (const auto &row : list->indexed()->all()) {
+		const auto history = row->history();
+		if (!history || (history == _history)) {
+			continue;
+		}
+		const auto peer = history->peer;
+		if (peer->isBroadcast()
+			&& (history->unreadCount() > 0)
+			&& !history->useTopPromotion()
+			&& peer->computeUnavailableReason().isEmpty()) {
+			// Kotatogram: no slideFromBottom here, its SectionShow has no
+			// such hint, so the feed continues with the standard
+			// transition while AyuGram slides the next channel in.
+			auto params = Window::SectionShow(
+				Window::SectionShow::Way::ClearStack);
+			_controller->showPeerHistory(not_null<History*>(history), params);
+			return;
+		}
+	}
 }
 
 void HistoryInner::reactionChosen(const ChosenReaction &reaction) {

@@ -527,6 +527,9 @@ private:
 
 	void setupSharingDisallowed();
 	void setupSwipeReplyAndBack();
+	// Kotatogram: the news feed continues to the next unread channel
+	// when the user scrolls a channel to its very end.
+	void checkAutoAdvanceNextChannel(int position);
 	[[nodiscard]] bool hasCopyRestriction(HistoryItem *item = nullptr) const;
 	[[nodiscard]] bool hasCopyMediaRestriction(
 		not_null<HistoryItem*> item) const;
@@ -542,6 +545,7 @@ private:
 	bool hasPendingResizedItems() const;
 
 	int _accessibilityFocusedIndex = -1;
+	bool _autoAdvanceArmed = false;
 	HistoryItem *_accessibilityFocusedItem = nullptr;
 	mutable const HistoryView::Element *_activeColumnsView = nullptr;
 	mutable std::vector<HistoryView::MessageSubItem> _activeColumns;
