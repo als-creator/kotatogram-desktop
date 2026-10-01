@@ -529,7 +529,7 @@ private:
 	void setupSwipeReplyAndBack();
 	// Kotatogram: the news feed continues to the next unread channel
 	// when the user scrolls a channel to its very end.
-	void checkAutoAdvanceNextChannel(int position);
+	void checkAutoAdvanceNextChannel(int scrollTop);
 	[[nodiscard]] bool hasCopyRestriction(HistoryItem *item = nullptr) const;
 	[[nodiscard]] bool hasCopyMediaRestriction(
 		not_null<HistoryItem*> item) const;

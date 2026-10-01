@@ -22,7 +22,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "dialogs/dialogs_main_list.h"
 #include "dialogs/dialogs_row.h"
 #include "history/history_item_helpers.h"
-#include "ui/widgets/elastic_scroll.h"
 #include "history/view/controls/history_view_forward_panel.h"
 #include "history/view/controls/history_view_draft_options.h"
 #include "history/view/controls/history_view_suggest_options.h"
@@ -461,9 +460,9 @@ HistoryInner::HistoryInner(
 	}, lifetime());
 	// Kotatogram: continue the news feed automatically. The default
 	// behaviour, it is not guarded by a setting.
-	_scroll->positionValue(
-	) | rpl::on_next([=](Ui::ElasticScrollPosition position) {
-		checkAutoAdvanceNextChannel(position);
+	_scroll->scrollTopValue(
+	) | rpl::on_next([=](int scrollTop) {
+		checkAutoAdvanceNextChannel(scrollTop);
 	}, lifetime());
 	session().data().itemRemoved(
 	) | rpl::on_next(
@@ -548,8 +547,7 @@ HistoryInner::HistoryInner(
 	setupSwipeReplyAndBack();
 }
 
-void HistoryInner::checkAutoAdvanceNextChannel(
-		Ui::ElasticScrollPosition position) {
+void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
 	// Kotatogram: on the built-in "News feed" tab the feed continues by
 	// itself. Reaching the very end of a channel opens the next unread
 	// channel of the feed.
@@ -565,11 +563,8 @@ void HistoryInner::checkAutoAdvanceNextChannel(
 		// The content is not scrollable yet, or it already fits the
 		// view, so there is no end to reach.
 		return;
-	} else if (position.value < max) {
+	} else if (scrollTop < max) {
 		_autoAdvanceArmed = true;
-		return;
-	} else if (position.overscroll) {
-		// Being pulled past the end is left to the pull gesture.
 		return;
 	} else if (!_autoAdvanceArmed || !_history->loadedAtBottom()) {
 		return;
