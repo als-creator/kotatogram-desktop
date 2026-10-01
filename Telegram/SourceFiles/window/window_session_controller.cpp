@@ -2116,10 +2116,9 @@ void SessionController::checkOpenedFilter() {
 		const auto &list = session().data().chatsFilters().list();
 		const auto i = ranges::find(list, filterId, &Data::ChatFilter::id);
 		if (i == end(list)) {
-			const auto defaultFilterId = session().account().defaultFilterId();
-			const auto j = ranges::find(list, FilterId(defaultFilterId), &Data::ChatFilter::id);
+			// Kotatogram: fall back to the tab marked as the main one.
 			setActiveChatsFilter(
-				j == end(list) ? 0 : defaultFilterId,
+				session().data().chatsFilters().primaryId(),
 				{ anim::type::normal, anim::activation::background });
 		}
 	}
@@ -2174,7 +2173,8 @@ void SessionController::openFolder(not_null<Data::Folder*> folder) {
 }
 
 void SessionController::closeFolder(bool force) {
-	const auto defaultFilterId = session().account().defaultFilterId();
+	// Kotatogram: the main tab wins, it is validated against the list.
+	const auto defaultFilterId = session().data().chatsFilters().primaryId();
 	if (defaultFilterId == 0 || force) {
 		if (_openedFolder.current()
 			&& windowId().type == SeparateType::Archive) {

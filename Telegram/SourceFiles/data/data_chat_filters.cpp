@@ -1396,11 +1396,36 @@ const std::vector<ChatFilter> &ChatFilters::list() const {
 }
 
 FilterId ChatFilters::defaultId() const {
-	return lookupId(0);
+	return primaryId();
+}
+
+FilterId ChatFilters::primaryId() const {
+	// Kotatogram: the main tab may be any tab, including the news feed tab
+	// with its reserved negative id, so the check is "is in the list" and
+	// not "is greater than zero". A tab that was deleted or hidden in the
+	// meantime falls back to the first one.
+	const auto id = FilterId(_owner->session().account().defaultFilterId());
+	return (id && ranges::contains(_list, id, &ChatFilter::id))
+		? id
+		: lookupId(0);
+}
+
+void ChatFilters::setPrimaryId(FilterId id) {
+	const auto account = &_owner->session().account();
+	if (FilterId(account->defaultFilterId()) == id) {
+		return;
+	}
+	account->setDefaultFilterId(id);
+	::Kotato::JsonSettings::Write();
 }
 
 FilterId ChatFilters::lookupId(int index) const {
-	Expects(index >= 0 && index < _list.size());
+	// Kotatogram: the list is empty until the folders are received, and
+	// the main tab may be requested before that happens, so an index out
+	// of range means "there is no folder to show" instead of an assertion.
+	if (!(index >= 0 && index < _list.size())) {
+		return FilterId();
+	}
 
 	if (_owner->session().user()->isPremium() || !_list.front().id()) {
 		return _list[index].id();
@@ -1678,6 +1703,15 @@ void ChatFilters::setNewsFeedEnabled(bool enabled) {
 	Core::App().saveSettings();
 	if (!enabled) {
 		remove(kNewsFeedFilterId);
+		// Kotatogram: a hidden tab cannot stay the main one, otherwise
+		// the chat list would be opened on a tab that is not in the list.
+		// The stored value is checked directly, the tab is already gone
+		// from the list at this point.
+		if (FilterId(
+				_owner->session().account().defaultFilterId())
+			== kNewsFeedFilterId) {
+			setPrimaryId(FilterId());
+		}
 		return;
 	}
 	if (!ranges::contains(_list, kNewsFeedFilterId, &ChatFilter::id)) {

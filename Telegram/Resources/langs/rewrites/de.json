@@ -173,5 +173,7 @@
 	"ktg_settings_remember_compress_images": "\"Bilder komprimieren\" merken",
 	"ktg_settings_compress_images_default": "Bilder standardmäßig komprimieren",
 	"ktg_pip_not_supported": "Bild-in-Bildmodus wird hier nicht unterstützt.",
+	"ktg_tab_context_make_default": "Make this tab the main one",
+	"ktg_tab_context_reset_default": "Reset the main tab",
 	"dummy_last_string": ""
 }

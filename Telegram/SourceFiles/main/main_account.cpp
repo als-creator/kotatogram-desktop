@@ -613,7 +613,7 @@ void Account::destroyStaleAuthorizationKeys() {
 	}
 }
 
-void Account::setDefaultFilterId(uint64 id) {
+void Account::setDefaultFilterId(int32 id) {
 	Expects(_mtp != nullptr);
 	Expects(_session != nullptr);
 

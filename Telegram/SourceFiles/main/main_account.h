@@ -120,7 +120,10 @@ public:
 	[[nodiscard]] int defaultFilterId() {
 		return _defaultFilterId;
 	}
-	void setDefaultFilterId(uint64 id);
+	// Kotatogram: the type is int32 (a FilterId) instead of uint64, because
+	// the built-in news feed tab has a reserved negative id and may become
+	// the main one, so the value must survive a round trip through here.
+	void setDefaultFilterId(int32 id);
 
 	[[nodiscard]] bool isCurrent(uint64 id, bool testMode);
 
