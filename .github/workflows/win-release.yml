@@ -79,6 +79,17 @@ jobs:
           echo "$SDK" >> CACHE_KEY.txt
           echo "CACHE_KEY=$(sha256sum CACHE_KEY.txt | awk '{ print $1 }')" >> $GITHUB_ENV
 
+      - name: Free up some disk space.
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be
+        with:
+          tool-cache: true
+          dotnet: true
+          large-packages: true
+          windows-standar-installer: true
+          windows-defender: true
+          windows-update: true
+          container-tool: true
+
       - uses: Eden-CI/msvc-dev-cmd@master
         name: Native Tools Command Prompt.
         with:
