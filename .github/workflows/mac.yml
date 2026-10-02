@@ -86,7 +86,24 @@ jobs:
 
           sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
 
-          sudo sed -i '' '/CMAKE_${lang}_FLAGS_DEBUG_INIT/s/ -g//' /opt/homebrew/share/cmake/Modules/Compiler/GNU.cmake
+      - name: Pin CMake below 4.4.
+        run: |
+          # Homebrew now ships CMake 4.4, which added policy CMP0218. Under it
+          # CMAKE_ERROR_DEPRECATED and CMAKE_WARN_DEPRECATED are ignored, and
+          # cmake/external/cmark_gfm/CMakeLists.txt still reads both to carry them
+          # around, so configure dies with
+          #   CMake Error (policy) at cmake/external/cmark_gfm/CMakeLists.txt:60
+          # Same pin win-release.yml already uses.
+          python -m pip install --user "cmake<4.4"
+          SCRIPTS="$(python -c "import sysconfig; print(sysconfig.get_path('scripts', scheme='posix_user'))")"
+          echo "$SCRIPTS" >> $GITHUB_PATH
+
+          # Debug builds of tdesktop do not fit on a runner with debug info.
+          # Resolve the file through the cmake that is first on PATH, which is
+          # the pinned one, rather than through the Homebrew path it replaces.
+          export PATH="$SCRIPTS:$PATH"
+          CMAKE_ROOT="$(cmake --system-information | sed -n 's/^CMAKE_ROOT "\([^"]*\)"$/\1/p')"
+          sudo sed -i '' '/CMAKE_${lang}_FLAGS_DEBUG_INIT/s/ -g//' "$CMAKE_ROOT/Modules/Compiler/GNU.cmake"
 
       - name: Libraries cache.
         id: cache-libs
