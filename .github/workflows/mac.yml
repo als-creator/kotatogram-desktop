@@ -2,6 +2,8 @@ name: MacOS.
 
 on:
   push:
+    branches:
+      - dev
     paths-ignore:
       - 'docs/**'
       - '**.md'
@@ -37,6 +39,7 @@ on:
       - 'Telegram/SourceFiles/platform/win/**'
       - 'Telegram/SourceFiles/platform/linux/**'
       - 'Telegram/configure.bat'
+  workflow_dispatch:
 
 jobs:
 
@@ -57,6 +60,8 @@ jobs:
       UPLOAD_ARTIFACT: "true"
       ONLY_CACHE: "false"
       PREPARE_PATH: "Telegram/build/prepare/prepare.py"
+      API_ID: ${{ secrets.TDESKTOP_API_ID }}
+      API_HASH: ${{ secrets.TDESKTOP_API_HASH }}
 
     steps:
       - name: Get repository name.
@@ -114,13 +119,20 @@ jobs:
             echo "ARTIFACT_NAME=Kotatogram" >> $GITHUB_ENV
           fi
 
+          if [ -n "$API_ID" ] && [ -n "$API_HASH" ]; then
+            API_ARGS="-D TDESKTOP_API_ID=$API_ID -D TDESKTOP_API_HASH=$API_HASH"
+          else
+            echo "::warning::TDESKTOP_API_ID/HASH secrets are not set; building with the TEST API (works only with Telegram test servers)."
+            API_ARGS="-D TDESKTOP_API_TEST=ON"
+          fi
+
           ./configure.sh \
           -D CMAKE_CONFIGURATION_TYPES=Debug \
           -D CMAKE_COMPILE_WARNING_AS_ERROR=ON \
           -D CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO \
-          -D TDESKTOP_API_TEST=ON \
+          $API_ARGS \
           -D DESKTOP_APP_DISABLE_AUTOUPDATE=OFF \
-          -D DESKTOP_APP_DISABLE_CRASH_REPORTS=OFF \
+          -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON \
           $DEFINE
 
           cmake --build ../out --config Debug --parallel
