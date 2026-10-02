@@ -178,7 +178,10 @@ jobs:
             $certPwd = ConvertTo-SecureString 'ktg-dev' -Force -AsPlainText
             Export-PfxCertificate -Cert "Cert:\CurrentUser\My\$thumb" -FilePath $pfx -Password $certPwd | Out-Null
 
-            $signtool = Get-ChildItem "$env:ProgramFiles(x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+            # Braces are required: PowerShell reads $env:ProgramFiles(x86) as the variable
+            # $env:ProgramFiles followed by the literal text "(x86)", which yields
+            # C:\Program Files(x86)\... and "Cannot find path". It signed nothing.
+            $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
               Sort-Object LastWriteTime -Descending | Select-Object -First 1
             if (-not $signtool) {
               Write-Warning 'signtool.exe not found, skipping sign'
