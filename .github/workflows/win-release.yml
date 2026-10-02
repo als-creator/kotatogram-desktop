@@ -125,9 +125,27 @@ jobs:
         run: |
           %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat skip-release silent qt6
 
+      # The runner runs out of disk while compiling the client, not while linking:
+      #   error C1085: Cannot write compiler generated file: ...obj:
+      #           No space left on device
+      # The C1060 "compiler is out of heap space" that arrives alongside it is
+      # only a symptom -- Windows cannot commit pages once the volume is full.
       - name: Free up some disk space.
         shell: bash
-        run: find $LibrariesPath '(' '(' ! '(' -name '*.lib' -o -name '*.a' -o -name '*.exe' -o -name '*.h' -o -name '*.hpp' -o -name '*.inc' -o -name '*.cmake' -o -path '*/include/*' -o -path '*/objects-*' -o -path '*/cache_keys/*' -o -path '*/patches/*' ')' -type f ')' -o -empty ')' -delete
+        run: |
+          TP="$(cygpath -u "$TBUILD")"
+          echo "свободно до: $(df -h "$TP" | tail -1 | awk '{print $4}')"
+
+          # msys64 and jom are prepare.py tools, several GB together, and nothing
+          # in the client build reads them: neither cmake/ nor
+          # Telegram/CMakeLists.txt mentions either name. The vendored sources the
+          # client does need live in the repository's Telegram/ThirdParty, which is
+          # a different path from this ThirdParty.
+          rm -rf "$TP/ThirdParty/msys64" "$TP/ThirdParty/jom"
+
+          find $LibrariesPath '(' '(' ! '(' -name '*.lib' -o -name '*.a' -o -name '*.exe' -o -name '*.h' -o -name '*.hpp' -o -name '*.inc' -o -name '*.cmake' -o -path '*/include/*' -o -path '*/objects-*' -o -path '*/cache_keys/*' -o -path '*/patches/*' ')' -type f ')' -o -empty ')' -delete
+
+          echo "свободно после: $(df -h "$TP" | tail -1 | awk '{print $4}')"
 
       - name: Kotatogram Desktop build (Debug).
         run: |
