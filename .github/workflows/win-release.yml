@@ -145,7 +145,12 @@ jobs:
           -D TDESKTOP_API_ID=611335 ^
           -D TDESKTOP_API_HASH=d524b414d21f4d37f08684c1df41ac9c
 
-          cmake --build ..\out --config Debug --parallel
+          # Debug is the memory hungry configuration and the runner has 16 GB.
+          # At unlimited --parallel MSBuild spawns one node per core and each one
+          # is a separate process buffering compiler output, which runs the node
+          # out of memory: the CL task dies with System.OutOfMemoryException in
+          # TrackedVCToolTask.SarifToolOutputPipe, and 28 MSB4018 follow it.
+          cmake --build ..\out --config Debug --parallel 2
 
       - name: Self-sign executables.
         shell: pwsh
