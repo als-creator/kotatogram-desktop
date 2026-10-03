@@ -202,12 +202,34 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          set -e
+          set -euo pipefail
           REPO="${{ github.repository }}"
           VER=$(grep '^AppVersionStr ' Telegram/build/version | awk '{print $2}')
-          TAG="v${VER}-build-${{ github.run_number }}"
-          gh release create "$TAG" \
-            Kotatogram-x86_64.AppImage \
-            --repo "$REPO" \
-            --title "Kotatogram v${VER} (dev) - build ${{ github.run_number }}" \
-            --notes "Dev AppImage of **als-creator/kotatogram-desktop**, branch \`dev\`, commit \`$GITHUB_SHA\`, actual version \`v${VER}\` (upstream dev, based on tdesktop, with forums)."
+          # The tag is keyed on the commit, not on this workflow's run counter,
+          # because Windows and macOS publish into the same release and each
+          # workflow has its own run_number. Keying on the commit also makes a
+          # re-run of the same push idempotent instead of cutting a new build.
+          SHORT="${GITHUB_SHA:0:7}"
+          TAG="v${VER}-dev-${SHORT}"
+          TITLE="Kotatogram v${VER} (dev) - ${SHORT}"
+
+          NOTES=$(mktemp)
+          {
+            printf 'Dev build of [als-creator/kotatogram-desktop](%s) branch `dev`, commit `%s`, actual version `v%s` (upstream dev, based on tdesktop, with forums).\n\n' "https://github.com/$REPO" "$GITHUB_SHA" "$VER"
+            printf 'This release is filled in by three workflows, so the assets appear as each platform finishes.\n\n'
+            cat docs/dev-release-notes.md
+          } > "$NOTES"
+
+          # Whichever platform finishes first creates the release, the others
+          # only add their asset to it.
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            echo "Release $TAG already exists, adding the AppImage to it."
+            gh release upload "$TAG" Kotatogram-x86_64.AppImage --repo "$REPO" --clobber
+          else
+            gh release create "$TAG" \
+              Kotatogram-x86_64.AppImage \
+              --repo "$REPO" \
+              --title "$TITLE" \
+              --notes-file "$NOTES" \
+              --target "$GITHUB_SHA"
+          fi

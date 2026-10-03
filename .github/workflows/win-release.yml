@@ -256,3 +256,58 @@ jobs:
         with:
           name: Kotatogram Windows x64 (dev)
           path: artifact\
+
+  # Packaging and publishing run on ubuntu rather than on windows-latest: zip
+  # and gh are already here, and the PowerShell equivalent buys nothing for a
+  # step that only compresses two files.
+  release:
+    name: Publish Windows build to Releases
+    needs: windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: Kotatogram Windows x64 (dev)
+          path: winartifact
+
+      - name: Package and publish.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          REPO="${{ github.repository }}"
+          VER=$(grep '^AppVersionStr ' Telegram/build/version | awk '{print $2}')
+          # Same tag as the AppImage and macOS workflows: keyed on the commit so
+          # all three land in one release despite having separate run counters.
+          SHORT="${GITHUB_SHA:0:7}"
+          TAG="v${VER}-dev-${SHORT}"
+          TITLE="Kotatogram v${VER} (dev) - ${SHORT}"
+          ASSET="Kotatogram-dev-windows-x64.zip"
+
+          # icon.ico is stored for reference next to the artifact, it is not
+          # something a user should unpack next to the executable.
+          rm -f winartifact/icon.ico
+          (cd winartifact && zip -q -9 "../$ASSET" Kotatogram.exe Updater.exe)
+
+          NOTES=$(mktemp)
+          {
+            printf 'Dev build of [als-creator/kotatogram-desktop](%s) branch `dev`, commit `%s`, actual version `v%s` (upstream dev, based on tdesktop, with forums).\n\n' "https://github.com/$REPO" "$GITHUB_SHA" "$VER"
+            printf 'This release is filled in by three workflows, so the assets appear as each platform finishes.\n\n'
+            cat docs/dev-release-notes.md
+          } > "$NOTES"
+
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            echo "Release $TAG already exists, adding the Windows build to it."
+            gh release upload "$TAG" "$ASSET" --repo "$REPO" --clobber
+          else
+            gh release create "$TAG" "$ASSET" \
+              --repo "$REPO" \
+              --title "$TITLE" \
+              --notes-file "$NOTES" \
+              --target "$GITHUB_SHA"
+          fi
