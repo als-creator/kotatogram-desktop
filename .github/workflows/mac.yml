@@ -167,3 +167,77 @@ jobs:
         with:
           name: ${{ env.ARTIFACT_NAME }}
           path: ${{ env.REPO_NAME }}/out/Debug/artifact/
+
+      # ditto is the packager macOS itself expects for an app bundle: it keeps
+      # the executable bit, the symlinks and the resource forks, none of which a
+      # zip written by another platform is guaranteed to preserve. That is why
+      # this runs here and not in the publishing job below.
+      - name: Package for release.
+        if: env.UPLOAD_ARTIFACT == 'true'
+        run: |
+          set -euo pipefail
+          cd "$REPO_NAME/out/Debug"
+          ARCH=$(uname -m)
+          ASSET="Kotatogram-dev-macos-${ARCH}.zip"
+          mkdir -p pkg/Kotatogram-macos-${ARCH}
+          mv artifact/Kotatogram.app artifact/Updater pkg/Kotatogram-macos-${ARCH}/
+          cd pkg
+          ditto -c -k --sequesterRsrc --keepParent \
+            "Kotatogram-macos-${ARCH}" \
+            "$GITHUB_WORKSPACE/$ASSET"
+          echo "Packaged $ASSET"
+          ls -l "$GITHUB_WORKSPACE/$ASSET"
+
+      - uses: actions/upload-artifact@v7
+        name: Upload release package.
+        if: env.UPLOAD_ARTIFACT == 'true'
+        with:
+          name: Kotatogram macOS release
+          path: Kotatogram-dev-macos-*.zip
+
+  release:
+    name: Publish macOS build to Releases
+    needs: macos
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: Kotatogram macOS release
+          path: macrelease
+
+      - name: Publish.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          REPO="${{ github.repository }}"
+          VER=$(grep '^AppVersionStr ' Telegram/build/version | awk '{print $2}')
+          # Same tag as the AppImage and Windows workflows: keyed on the commit
+          # so all three land in one release despite separate run counters.
+          SHORT="${GITHUB_SHA:0:7}"
+          TAG="v${VER}-dev-${SHORT}"
+          TITLE="Kotatogram v${VER} (dev) - ${SHORT}"
+          ASSET=$(ls macrelease/Kotatogram-dev-macos-*.zip)
+
+          NOTES=$(mktemp)
+          {
+            printf 'Dev build of [als-creator/kotatogram-desktop](%s) branch `dev`, commit `%s`, actual version `v%s` (upstream dev, based on tdesktop, with forums).\n\n' "https://github.com/$REPO" "$GITHUB_SHA" "$VER"
+            printf 'This release is filled in by three workflows, so the assets appear as each platform finishes.\n\n'
+            cat docs/dev-release-notes.md
+          } > "$NOTES"
+
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            echo "Release $TAG already exists, adding the macOS build to it."
+            gh release upload "$TAG" "$ASSET" --repo "$REPO" --clobber
+          else
+            gh release create "$TAG" "$ASSET" \
+              --repo "$REPO" \
+              --title "$TITLE" \
+              --notes-file "$NOTES" \
+              --target "$GITHUB_SHA"
+          fi
