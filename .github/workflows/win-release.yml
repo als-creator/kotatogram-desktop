@@ -134,18 +134,24 @@ jobs:
         shell: bash
         run: |
           TP="$(cygpath -u "$TBUILD")"
-          echo "свободно до: $(df -h "$TP" | tail -1 | awk '{print $4}')"
+          echo "--- тома ---"
+          df -h
+          echo "--- ThirdParty до: $(du -sh "$TP/ThirdParty" 2>/dev/null | cut -f1) ---"
 
-          # msys64 and jom are prepare.py tools, several GB together, and nothing
-          # in the client build reads them: neither cmake/ nor
-          # Telegram/CMakeLists.txt mentions either name. The vendored sources the
-          # client does need live in the repository's Telegram/ThirdParty, which is
-          # a different path from this ThirdParty.
-          rm -rf "$TP/ThirdParty/msys64" "$TP/ThirdParty/jom"
+          # Everything in this ThirdParty is put there by prepare.py and used by
+          # the Libraries stage alone: msys64, jom, python, patches, NuGet. The
+          # client build reads none of it -- neither cmake/ nor
+          # Telegram/CMakeLists.txt mentions any of those names. The vendored
+          # sources the client does need live in the repository's
+          # Telegram/ThirdParty, a different path, and there is no root-level
+          # ThirdParty in the repository at all.
+          rm -rf "$TP/ThirdParty"
 
           find $LibrariesPath '(' '(' ! '(' -name '*.lib' -o -name '*.a' -o -name '*.exe' -o -name '*.h' -o -name '*.hpp' -o -name '*.inc' -o -name '*.cmake' -o -path '*/include/*' -o -path '*/objects-*' -o -path '*/cache_keys/*' -o -path '*/patches/*' ')' -type f ')' -o -empty ')' -delete
 
-          echo "свободно после: $(df -h "$TP" | tail -1 | awk '{print $4}')"
+          echo "--- тома после ---"
+          df -h
+          echo "--- Libraries после: $(du -sh "$LibrariesPath" 2>/dev/null | cut -f1) ---"
 
       - name: Kotatogram Desktop build (Debug).
         run: |
