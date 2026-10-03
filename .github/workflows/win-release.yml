@@ -42,8 +42,8 @@ jobs:
     steps:
       - name: Prepare directories.
         run: |
-          mkdir %userprofile%\TBuild\Libraries
-          mklink /d %GITHUB_WORKSPACE%\TBuild %userprofile%\TBuild
+          mkdir %GITHUB_WORKSPACE%\TBuild\Libraries
+          mklink /d %userprofile%\TBuild %GITHUB_WORKSPACE%\TBuild
           echo TBUILD=%GITHUB_WORKSPACE%\TBuild>>%GITHUB_ENV%
           echo LibrariesPath=%GITHUB_WORKSPACE%\TBuild\Libraries\win64>>%GITHUB_ENV%
 
@@ -138,14 +138,15 @@ jobs:
           df -h
           echo "--- ThirdParty до: $(du -sh "$TP/ThirdParty" 2>/dev/null | cut -f1) ---"
 
-          # Everything in this ThirdParty is put there by prepare.py and used by
-          # the Libraries stage alone: msys64, jom, python, patches, NuGet. The
-          # client build reads none of it -- neither cmake/ nor
-          # Telegram/CMakeLists.txt mentions any of those names. The vendored
-          # sources the client does need live in the repository's
-          # Telegram/ThirdParty, a different path, and there is no root-level
-          # ThirdParty in the repository at all.
-          rm -rf "$TP/ThirdParty"
+          # msys64 and jom are prepare.py tooling and nothing in the client build
+          # reads them: grepping the tree for ThirdParty/msys64 and
+          # ThirdParty/jom returns no hits. ThirdParty/python and
+          # ThirdParty/NuGet have to stay -- CMakeLists.txt:52 points
+          # Python3_EXECUTABLE at the former, cmake/nuget.cmake:11 resolves
+          # nuget out of the latter. Removing the whole directory instead costs
+          # five minutes of configure time to rediscover that:
+          #   Could NOT find Python3 (missing: Interpreter)
+          rm -rf "$TP/ThirdParty/msys64" "$TP/ThirdParty/jom"
 
           find $LibrariesPath '(' '(' ! '(' -name '*.lib' -o -name '*.a' -o -name '*.exe' -o -name '*.h' -o -name '*.hpp' -o -name '*.inc' -o -name '*.cmake' -o -path '*/include/*' -o -path '*/objects-*' -o -path '*/cache_keys/*' -o -path '*/patches/*' ')' -type f ')' -o -empty ')' -delete
 
