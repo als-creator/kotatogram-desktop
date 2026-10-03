@@ -206,7 +206,14 @@ jobs:
             # Braces are required: PowerShell reads $env:ProgramFiles(x86) as the variable
             # $env:ProgramFiles followed by the literal text "(x86)", which yields
             # C:\Program Files(x86)\... and "Cannot find path". It signed nothing.
+            #
+            # The architecture filter is required as well. The SDK ships signtool.exe
+            # under bin\<version>\<arch>\, and without the filter Get-ChildItem returns
+            # the arm64 copy first. That binary cannot start on an x64 runner, the run
+            # fails, and the catch below turns that into a warning while the unsigned
+            # exe is uploaded anyway. That is what the last green run did.
             $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+              Where-Object { $_.Directory.Name -eq 'x64' } |
               Sort-Object LastWriteTime -Descending | Select-Object -First 1
             if (-not $signtool) {
               Write-Warning 'signtool.exe not found, skipping sign'
@@ -231,6 +238,7 @@ jobs:
             Write-Host 'Self-sign OK'
           } catch {
             Write-Warning "Signing skipped due to error: $($_.Exception.Message)"
+            Write-Warning 'Kotatogram.exe and Updater.exe are being released UNSIGNED, Windows will warn on every start'
           }
 
       - name: Move artifact.
