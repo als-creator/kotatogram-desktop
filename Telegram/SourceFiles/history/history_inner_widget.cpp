@@ -142,6 +142,14 @@ namespace {
 
 constexpr auto kScrollDateHideTimeout = 1000;
 constexpr auto kScrollDateHideOnDayCrossingTimeout = crl::time(3000);
+// Kotatogram: how long the end of a channel has to be held still before
+// the news feed continues to the next channel. Without any delay the jump
+// happened on the very first scroll event that reached the end, which
+// made a fast scroll through a channel run the whole feed away before
+// its last message could be read. The value is a compromise: long enough
+// that resting on the last message is a normal reading pause, short
+// enough not to interrupt the flow of the feed when it is read on purpose.
+constexpr auto kAutoAdvanceDelay = crl::time(700);
 constexpr auto kUnloadHeavyPartsPages = 2;
 constexpr auto kClearUserpicsAfter = 50;
 
@@ -393,7 +401,8 @@ HistoryInner::HistoryInner(
 	[=] { mouseActionUpdate(QCursor::pos()); setCursor(_cursor); },
 	[=] { return window()->isActiveWindow(); })
 , _scrollDateCheck([this] { scrollDateCheck(); })
-, _scrollDateHideTimer([this] { scrollDateHideByTimer(); }) {
+, _scrollDateHideTimer([this] { scrollDateHideByTimer(); })
+, _autoAdvanceTimer([this] { autoAdvanceNextChannel(); }) {
 	_history->delegateMixin()->setCurrent(this);
 	if (_migrated) {
 		_migrated->delegateMixin()->setCurrent(this);
@@ -550,7 +559,8 @@ HistoryInner::HistoryInner(
 void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
 	// Kotatogram: on the built-in "News feed" tab the feed continues by
 	// itself. Reaching the very end of a channel opens the next unread
-	// channel of the feed.
+	// channel of the feed, but only after the end has been held still for
+	// kAutoAdvanceDelay, see autoAdvanceNextChannel().
 	if (_controller->activeChatsFilterCurrent() != kNewsFeedFilterId
 		|| !_peer->isBroadcast()) {
 		return;
@@ -565,13 +575,36 @@ void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
 		return;
 	} else if (scrollTop < max) {
 		_autoAdvanceArmed = true;
+		// Leaving the end breaks the dwell: the user went back up to
+		// read on, so a pending continuation must not move the feed
+		// under them once it expires.
+		_autoAdvanceTimer.cancel();
 		return;
 	} else if (!_autoAdvanceArmed || !_history->loadedAtBottom()) {
 		return;
 	}
 	// One jump per arming, otherwise a channel opened at the bottom
-	// would chain into the next one and the next one.
+	// would chain into the next one and the next one. Disarming here
+	// also keeps repeated scroll events at the end from restarting the
+	// dwell over and over.
 	_autoAdvanceArmed = false;
+	_autoAdvanceTimer.callOnce(kAutoAdvanceDelay);
+}
+
+void HistoryInner::autoAdvanceNextChannel() {
+	if (_controller->activeChatsFilterCurrent() != kNewsFeedFilterId
+		|| !_peer->isBroadcast()
+		|| !_history->loadedAtBottom()) {
+		return;
+	}
+	// The content may have grown during the dwell, which moves the end
+	// away without emitting a scroll event. Staying where the user left
+	// them is better than yanking them into the next channel, so the
+	// bottom has to be reached again from the top before continuing.
+	const auto max = _scroll->scrollTopMax();
+	if ((max <= 0) || (_scroll->scrollTop() < max)) {
+		return;
+	}
 	const auto list = _controller->session().data().chatsFilters().chatsList(
 		kNewsFeedFilterId);
 	for (const auto &row : list->indexed()->all()) {

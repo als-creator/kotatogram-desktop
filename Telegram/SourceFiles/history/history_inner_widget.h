@@ -528,8 +528,11 @@ private:
 	void setupSharingDisallowed();
 	void setupSwipeReplyAndBack();
 	// Kotatogram: the news feed continues to the next unread channel
-	// when the user scrolls a channel to its very end.
+	// when the user scrolls a channel to its very end. This only decides
+	// that the end was reached and arms the dwell, the jump itself is
+	// made by autoAdvanceNextChannel() once the dwell has expired.
 	void checkAutoAdvanceNextChannel(int scrollTop);
+	void autoAdvanceNextChannel();
 	[[nodiscard]] bool hasCopyRestriction(HistoryItem *item = nullptr) const;
 	[[nodiscard]] bool hasCopyMediaRestriction(
 		not_null<HistoryItem*> item) const;
@@ -678,6 +681,11 @@ private:
 	bool _scrollDateAfterDayCrossing = false;
 	ClickHandlerPtr _scrollDateLink;
 	ClickHandlerPtr _forumThreadBarLink;
+
+	// Kotatogram: the news feed dwell, see checkAutoAdvanceNextChannel().
+	// Declared after the other timers to keep the order of the constructor
+	// initialiser list.
+	base::Timer _autoAdvanceTimer;
 
 	[[nodiscard]] HistoryView::ElementOverlayHost &ensureOverlayHost();
 	std::unique_ptr<HistoryView::ElementOverlayHost> _overlayHost;
