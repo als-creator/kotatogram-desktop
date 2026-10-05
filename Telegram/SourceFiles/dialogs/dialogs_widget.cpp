@@ -2577,8 +2577,12 @@ void Widget::escape() {
 			}
 		} else if (controller()->activeChatEntryCurrent().key) {
 			controller()->content()->dialogsCancelled();
-		} else if (controller()->isPrimary()) {
+			// Kotatogram: leaving a chat with Escape returns to the main
+			// tab, the same way the back arrow does.
+			controller()->showPrimaryChatsFilter();
+		} else {
 			// Kotatogram: return to the tab marked as the main one.
+			// showPrimaryChatsFilter() checks isPrimary() on its own.
 			controller()->showPrimaryChatsFilter();
 		}
 	} else if (!_searchState.inChat
