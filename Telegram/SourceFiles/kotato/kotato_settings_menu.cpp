@@ -579,8 +579,9 @@ void SetupKotatoFolders(
 	// the post that was reached.
 	SettingsMenuJsonSwitch(ktg_settings_auto_advance, auto_advance_enabled);
 
-	// Kotatogram: the slider works in tenths of a second, which is what
-	// the stored value is, and the label counts whole seconds.
+	// Kotatogram: whole seconds, stored as they are shown. The number of
+	// steps is one more than the largest value, because the steps are the
+	// indices 0 to valuesCount - 1.
 	{
 		const auto label = container->add(
 			object_ptr<Ui::LabelSimple>(
@@ -592,21 +593,20 @@ void SetupKotatoFolders(
 				container,
 				st::defaultContinuousSlider),
 			st::localStorageLimitMargin);
-		const auto delayText = [](int value) {
-			const auto seconds = value / 10;
+		const auto delayText = [](int seconds) {
 			return (seconds
 				? ktr("ktg_settings_auto_advance_delay", {
 					"count", QString::number(seconds) })
 				: ktr("ktg_settings_auto_advance_delay_none"));
 		};
-		const auto update = [=](int value) {
-			label->setText(delayText(value));
-			::Kotato::JsonSettings::Set("auto_advance_delay", value);
+		const auto update = [=](int seconds) {
+			label->setText(delayText(seconds));
+			::Kotato::JsonSettings::Set("auto_advance_delay", seconds);
 			::Kotato::JsonSettings::Write();
 		};
 		slider->resize(st::defaultContinuousSlider.seekSize);
 		slider->setPseudoDiscrete(
-			300, // 0 to 30 seconds, in tenths
+			31, // 0 to 30 seconds
 			[](int val) { return val; },
 			::Kotato::JsonSettings::GetInt("auto_advance_delay"),
 			update);
