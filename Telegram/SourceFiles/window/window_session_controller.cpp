@@ -3266,6 +3266,14 @@ void SessionController::showBackFromStack(const SectionShow &params) {
 	do {
 		const auto empty = content()->stackIsEmpty();
 		const auto shown = content()->showBackFromStack(params);
+		if (empty && !shown && content()->stackIsEmpty()) {
+			// Kotatogram: the back arrow returns to the chat list, and the
+			// list goes back to the tab marked as the main one. Only when
+			// the stack is really empty on both sides and nothing was
+			// shown: popping a section inside a chat must not move the
+			// chat list while the chat is still open.
+			showPrimaryChatsFilter();
+		}
 		if (empty && !shown && content()->stackIsEmpty() && bad()) {
 			clearSectionStack(anim::type::instant);
 			window().close();
