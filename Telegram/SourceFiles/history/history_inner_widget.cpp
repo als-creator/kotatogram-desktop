@@ -15,7 +15,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/file_utilities.h"
 #include "core/click_handler_types.h"
 #include "core/phone_click_handler.h"
-#include "data/data_chat_filters.h" // kNewsFeedFilterId.
+#include "data/data_chat_filters.h" // chatsList().
 #include "data/data_chat_participant_status.h"
 #include "data/data_peer.h"
 #include "dialogs/dialogs_indexed_list.h"
@@ -142,14 +142,6 @@ namespace {
 
 constexpr auto kScrollDateHideTimeout = 1000;
 constexpr auto kScrollDateHideOnDayCrossingTimeout = crl::time(3000);
-// Kotatogram: how long the end of a channel has to be held still before
-// the news feed continues to the next channel. Without any delay the jump
-// happened on the very first scroll event that reached the end, which
-// made a fast scroll through a channel run the whole feed away before
-// its last message could be read. The value is a compromise: long enough
-// that resting on the last message is a normal reading pause, short
-// enough not to interrupt the flow of the feed when it is read on purpose.
-constexpr auto kAutoAdvanceDelay = crl::time(700);
 constexpr auto kUnloadHeavyPartsPages = 2;
 constexpr auto kClearUserpicsAfter = 50;
 
@@ -557,17 +549,24 @@ HistoryInner::HistoryInner(
 }
 
 void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
-	// Kotatogram: on the built-in "News feed" tab the feed continues by
-	// itself. Reaching the very end of a channel opens the next unread
-	// channel of the feed, but only after the end has been held still for
-	// kAutoAdvanceDelay, see autoAdvanceNextChannel().
-	if (_controller->activeChatsFilterCurrent() != kNewsFeedFilterId
-		|| !_peer->isBroadcast()) {
+	// Kotatogram: the chat list continues by itself. Reaching the very end
+	// of a chat opens the next unread chat of the current folder, but only
+	// after the end has been held still for autoAdvanceDelay(), see
+	// autoAdvanceNextChannel().
+	//
+	// Kotatogram: this used to be restricted to the built-in "News feed"
+	// tab and to broadcast peers, which left the other folders without the
+	// continuation and was the only reason for the hardcoded filter id here.
+	// The folder is now taken from the controller, so the continuation
+	// follows whatever tab is open.
+	if (!::Kotato::JsonSettings::GetBool("auto_advance_enabled")) {
+		_autoAdvanceArmed = false;
+		_autoAdvanceTimer.cancel();
 		return;
 	}
 	// Arm on the first move away from the end and fire only on the way
-	// back, so that opening a channel at its newest message (which lands
-	// at the bottom right away) does not walk the whole feed away.
+	// back, so that opening a chat at its newest message (which lands
+	// at the bottom right away) does not walk the whole list away.
 	const auto max = _scroll->scrollTopMax();
 	if (max <= 0) {
 		// The content is not scrollable yet, or it already fits the
@@ -576,25 +575,35 @@ void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
 	} else if (scrollTop < max) {
 		_autoAdvanceArmed = true;
 		// Leaving the end breaks the dwell: the user went back up to
-		// read on, so a pending continuation must not move the feed
+		// read on, so a pending continuation must not move the list
 		// under them once it expires.
 		_autoAdvanceTimer.cancel();
 		return;
 	} else if (!_autoAdvanceArmed || !_history->loadedAtBottom()) {
 		return;
 	}
-	// One jump per arming, otherwise a channel opened at the bottom
+	// One jump per arming, otherwise a chat opened at the bottom
 	// would chain into the next one and the next one. Disarming here
 	// also keeps repeated scroll events at the end from restarting the
 	// dwell over and over.
 	_autoAdvanceArmed = false;
-	_autoAdvanceTimer.callOnce(kAutoAdvanceDelay);
+	_autoAdvanceTimer.callOnce(autoAdvanceDelay());
+}
+
+crl::time HistoryInner::autoAdvanceDelay() const {
+	// Kotatogram: the dwell is a setting now, in tenths of a second, so
+	// that there is a real chance to read the last post of a chat before
+	// the list moves on. Zero means "switch right away".
+	return crl::time(
+		std::max(0, ::Kotato::JsonSettings::GetInt("auto_advance_delay"))
+	) * 100;
 }
 
 void HistoryInner::autoAdvanceNextChannel() {
-	if (_controller->activeChatsFilterCurrent() != kNewsFeedFilterId
-		|| !_peer->isBroadcast()
-		|| !_history->loadedAtBottom()) {
+	// Kotatogram: the folder is whatever tab is open, not the hardcoded
+	// news feed id, and any chat counts, not only broadcast ones.
+	const auto filterId = _controller->activeChatsFilterCurrent();
+	if (!_history->loadedAtBottom()) {
 		return;
 	}
 	// The content may have grown during the dwell, which moves the end
@@ -606,14 +615,14 @@ void HistoryInner::autoAdvanceNextChannel() {
 		return;
 	}
 	const auto list = _controller->session().data().chatsFilters().chatsList(
-		kNewsFeedFilterId);
+		filterId);
 	const auto &rows = list->indexed()->all();
-	// Kotatogram: continue the feed forward only. A channel that stayed
+	// Kotatogram: continue the list forward only. A chat that stayed
 	// unread for a reason of its own is still a candidate, and taking the
 	// first candidate in the list order then dragged the user back into a
-	// channel the feed had already been to, bouncing back and forth over
-	// the last few channels once the unread ones ran out. Anything before
-	// the channel being read is behind the user, and must stay there.
+	// chat the list had already been to, bouncing back and forth over the
+	// last few chats once the unread ones ran out. Anything before the
+	// chat being read is behind the user, and must stay there.
 	const auto findTarget = [&](bool onlyAfterCurrent) -> History * {
 		auto passedCurrent = !onlyAfterCurrent;
 		for (const auto &row : rows) {
@@ -627,8 +636,7 @@ void HistoryInner::autoAdvanceNextChannel() {
 				continue;
 			}
 			const auto peer = history->peer;
-			if (peer->isBroadcast()
-				&& (history->unreadCount() > 0)
+			if ((history->unreadCount() > 0)
 				&& !history->useTopPromotion()
 				&& peer->computeUnavailableReason().isEmpty()) {
 				return history;

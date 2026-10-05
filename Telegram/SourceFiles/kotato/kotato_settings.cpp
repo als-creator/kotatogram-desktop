@@ -329,6 +329,13 @@ const std::map<QString, Definition, std::greater<QString>> DefinitionMap {
 		.type = SettingType::IntSetting,
 		.defaultValue = 0,
 		.limitHandler = IntLimitMin(0), }},
+	{ "auto_advance_enabled", {
+		.type = SettingType::BoolSetting,
+		.defaultValue = true, }},
+	{ "auto_advance_delay", {
+		.type = SettingType::IntSetting,
+		.defaultValue = 10000,
+		.limitHandler = IntLimit(0, 300000, 10000), }},
 	{ "folders/count_unmuted_only", {
 		.type = SettingType::BoolSetting,
 		.defaultValue = false, }},

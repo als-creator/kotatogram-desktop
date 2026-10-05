@@ -527,12 +527,13 @@ private:
 
 	void setupSharingDisallowed();
 	void setupSwipeReplyAndBack();
-	// Kotatogram: the news feed continues to the next unread channel
-	// when the user scrolls a channel to its very end. This only decides
+	// Kotatogram: the chat list continues to the next unread chat
+	// when the user scrolls a chat to its very end. This only decides
 	// that the end was reached and arms the dwell, the jump itself is
 	// made by autoAdvanceNextChannel() once the dwell has expired.
 	void checkAutoAdvanceNextChannel(int scrollTop);
 	void autoAdvanceNextChannel();
+	[[nodiscard]] crl::time autoAdvanceDelay() const;
 	[[nodiscard]] bool hasCopyRestriction(HistoryItem *item = nullptr) const;
 	[[nodiscard]] bool hasCopyMediaRestriction(
 		not_null<HistoryItem*> item) const;
