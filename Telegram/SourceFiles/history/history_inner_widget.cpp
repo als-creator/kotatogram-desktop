@@ -614,6 +614,16 @@ void HistoryInner::autoAdvanceNextChannel() {
 	if ((max <= 0) || (_scroll->scrollTop() < max)) {
 		return;
 	}
+	// Kotatogram: the read marking is computed while painting, and the
+	// jump below destroys this widget before Qt gets to that paint, so the
+	// post that was reached stayed unread and the counter did not go down.
+	// Force one paint now, while the widget is still alive. It is safe
+	// here: this runs from the dwell timer, never from inside a paint.
+	// Whether the messages are actually marked read is still decided by
+	// markingMessagesRead(), so an unfocused window keeps not marking
+	// them, as it should.
+	markReadMetricsStale();
+	repaint();
 	const auto list = _controller->session().data().chatsFilters().chatsList(
 		filterId);
 	const auto &rows = list->indexed()->all();
@@ -636,7 +646,13 @@ void HistoryInner::autoAdvanceNextChannel() {
 				continue;
 			}
 			const auto peer = history->peer;
+			// Kotatogram: a chat whose slice does not reach the bottom
+			// opens on a spinner or on a half loaded view, which is what
+			// the continuation looked like when it landed on such a
+			// chat. loadedAtBottom() defaults to true, so a chat that was
+			// never opened is still a valid candidate.
 			if ((history->unreadCount() > 0)
+				&& history->loadedAtBottom()
 				&& !history->useTopPromotion()
 				&& peer->computeUnavailableReason().isEmpty()) {
 				return history;
