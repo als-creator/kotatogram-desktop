@@ -14,10 +14,15 @@ namespace Ui {
 class FlatLabel;
 } // namespace Ui
 
+namespace Window {
+class SessionController;
+} // namespace Window
+
 class UnpinMessageBox final : public Ui::BoxContent {
 public:
 	UnpinMessageBox(
 		QWidget*,
+		not_null<Window::SessionController*> controller,
 		not_null<PeerData*> peer,
 		MsgId topicRootId,
 		MsgId msgId,
@@ -33,6 +38,7 @@ private:
 	void unpinMessage();
 
 	const not_null<PeerData*> _peer;
+	const not_null<Window::SessionController*> _controller;
 	MTP::Sender _api;
 	MsgId _topicRootId = 0;
 	MsgId _msgId = 0;

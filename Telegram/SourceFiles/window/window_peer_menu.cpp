@@ -3962,11 +3962,12 @@ void ToggleMessagePinned(
 	}
 	if (pin) {
 		navigation->parentController()->show(
-			Box(PinMessageBox, item),
+			Box(PinMessageBox, navigation->parentController(), item),
 			Ui::LayerOption::CloseOther);
 	} else {
 		navigation->parentController()->show(
 			Box<UnpinMessageBox>(
+				navigation->parentController(),
 				item->history()->peer,
 				item->topicRootId(),
 				item->id,
