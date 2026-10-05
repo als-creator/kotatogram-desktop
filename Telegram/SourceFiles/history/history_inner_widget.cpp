@@ -142,6 +142,11 @@ namespace {
 
 constexpr auto kScrollDateHideTimeout = 1000;
 constexpr auto kScrollDateHideOnDayCrossingTimeout = crl::time(3000);
+// Kotatogram: the largest delay the setting offers, in seconds. It is
+// repeated here instead of taken from the settings module, because the
+// widget must not depend on where the limit happens to be declared, and
+// a value beyond it is only reachable by editing the settings file.
+constexpr auto kAutoAdvanceMaxDelaySeconds = 30;
 constexpr auto kUnloadHeavyPartsPages = 2;
 constexpr auto kClearUserpicsAfter = 50;
 
@@ -591,12 +596,14 @@ void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
 }
 
 crl::time HistoryInner::autoAdvanceDelay() const {
-	// Kotatogram: the dwell is a setting now, in tenths of a second, so
-	// that there is a real chance to read the last post of a chat before
-	// the list moves on. Zero means "switch right away".
-	return crl::time(
-		std::max(0, ::Kotato::JsonSettings::GetInt("auto_advance_delay"))
-	) * 100;
+	// Kotatogram: the dwell is a setting now, in whole seconds, so that
+	// there is a real chance to read the last post of a chat before the
+	// list moves on. Zero means "switch right away". The clamp keeps a
+	// hand edited settings file from producing a silly wait.
+	return crl::time(std::clamp(
+		::Kotato::JsonSettings::GetInt("auto_advance_delay"),
+		0,
+		kAutoAdvanceMaxDelaySeconds)) * 1000;
 }
 
 void HistoryInner::autoAdvanceNextChannel() {

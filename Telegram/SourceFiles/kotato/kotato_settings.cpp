@@ -332,10 +332,17 @@ const std::map<QString, Definition, std::greater<QString>> DefinitionMap {
 	{ "auto_advance_enabled", {
 		.type = SettingType::BoolSetting,
 		.defaultValue = true, }},
+	// Kotatogram: whole seconds, matching the slider in the settings menu
+	// exactly (0 to 30 seconds, 0 meaning "switch right away"). The limit
+	// has to cover every value the slider can produce, otherwise a value
+	// above the last step leaves the slider with no step to select.
+	// Seconds rather than fractions on purpose: a fraction cannot be shown
+	// in the label without rounding, and a rounded label disagrees with
+	// the actual delay.
 	{ "auto_advance_delay", {
 		.type = SettingType::IntSetting,
-		.defaultValue = 10000,
-		.limitHandler = IntLimit(0, 300000, 10000), }},
+		.defaultValue = 10,
+		.limitHandler = IntLimit(0, 30, 10), }},
 	{ "folders/count_unmuted_only", {
 		.type = SettingType::BoolSetting,
 		.defaultValue = false, }},
