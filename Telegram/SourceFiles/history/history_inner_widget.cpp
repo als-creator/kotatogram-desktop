@@ -464,8 +464,16 @@ HistoryInner::HistoryInner(
 	) | rpl::on_next([=] {
 		update();
 	}, lifetime());
-	// Kotatogram: continue the news feed automatically. The default
-	// behaviour, it is not guarded by a setting.
+	// Kotatogram: continue the chat list automatically when the end of a
+	// chat is reached. Guarded by a setting, and it follows whatever tab
+	// is open.
+	const auto refreshAutoAdvance = [=] {
+		_autoAdvanceEnabled = ::Kotato::JsonSettings::GetBool(
+			"auto_advance_enabled");
+	};
+	::Kotato::JsonSettings::Events("auto_advance_enabled"
+	) | rpl::on_next(refreshAutoAdvance, lifetime());
+	refreshAutoAdvance();
 	_scroll->scrollTopValue(
 	) | rpl::on_next([=](int scrollTop) {
 		checkAutoAdvanceNextChannel(scrollTop);
@@ -564,7 +572,7 @@ void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
 	// continuation and was the only reason for the hardcoded filter id here.
 	// The folder is now taken from the controller, so the continuation
 	// follows whatever tab is open.
-	if (!::Kotato::JsonSettings::GetBool("auto_advance_enabled")) {
+	if (!_autoAdvanceEnabled) {
 		_autoAdvanceArmed = false;
 		_autoAdvanceTimer.cancel();
 		return;

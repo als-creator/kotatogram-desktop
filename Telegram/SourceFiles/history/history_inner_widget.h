@@ -550,6 +550,11 @@ private:
 
 	int _accessibilityFocusedIndex = -1;
 	bool _autoAdvanceArmed = false;
+	// Kotatogram: a cached copy of the "auto_advance_enabled" setting.
+	// It is checked on every scroll value change, and reading the settings
+	// hash there means hashing a string on every scroll event. The cache
+	// is refreshed from the settings event stream instead.
+	bool _autoAdvanceEnabled = true;
 	HistoryItem *_accessibilityFocusedItem = nullptr;
 	mutable const HistoryView::Element *_activeColumnsView = nullptr;
 	mutable std::vector<HistoryView::MessageSubItem> _activeColumns;
