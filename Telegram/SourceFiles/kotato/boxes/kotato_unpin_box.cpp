@@ -21,14 +21,17 @@ https://github.com/kotatogram/kotatogram-desktop/blob/dev/LEGAL
 #include "main/main_session_settings.h"
 #include "styles/style_layers.h"
 #include "styles/style_boxes.h"
+#include "window/window_session_controller.h"
 
 UnpinMessageBox::UnpinMessageBox(
 	QWidget*,
+	not_null<Window::SessionController*> controller,
 	not_null<PeerData*> peer,
 	MsgId topicRootId,
 	MsgId msgId,
 	Fn<void()> onHidden)
 : _peer(peer)
+, _controller(controller)
 , _api(&peer->session().mtp())
 , _topicRootId(topicRootId)
 , _msgId(msgId)
@@ -79,6 +82,18 @@ void UnpinMessageBox::unpinMessage() {
 		_peer->session().api().applyUpdates(result);
 		Ui::hideLayer();
 	}).fail([=](const MTP::Error &error) {
+		// Kotatogram: same as in the pin box, a refused unpin used to
+		// close the box without a word, so report the server's reason.
+		const auto description = error.description();
+		LOG(("RPC Error in UnpinMessageBox: %1 %2: %3")
+			.arg(error.code())
+			.arg(error.type(),
+				description));
 		Ui::hideLayer();
+		if (!description.isEmpty()) {
+			_controller->showToast(
+				description,
+				ApiWrap::kJoinErrorDuration);
+		}
 	}).send();
 }

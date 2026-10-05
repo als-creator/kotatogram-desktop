@@ -11,6 +11,11 @@ namespace Ui {
 class GenericBox;
 } // namespace Ui
 
+namespace Window {
+class SessionController;
+} // namespace Window
+
 void PinMessageBox(
 	not_null<Ui::GenericBox*> box,
+	not_null<Window::SessionController*> controller,
 	not_null<HistoryItem*> item);

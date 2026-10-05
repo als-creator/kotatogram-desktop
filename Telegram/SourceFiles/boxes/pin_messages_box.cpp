@@ -18,6 +18,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/checkbox.h"
 #include "styles/style_layers.h"
 #include "styles/style_boxes.h"
+#include "window/window_session_controller.h"
 
 namespace {
 
@@ -48,6 +49,7 @@ namespace {
 
 void PinMessageBox(
 		not_null<Ui::GenericBox*> box,
+		not_null<Window::SessionController*> controller,
 		not_null<HistoryItem*> item) {
 	struct State {
 		base::weak_qptr<Ui::Checkbox> pinForPeer;
@@ -117,8 +119,24 @@ void PinMessageBox(
 		)).done([=](const MTPUpdates &result) {
 			peer->session().api().applyUpdates(result);
 			box->closeBox();
-		}).fail([=] {
+		}).fail([=](const MTP::Error &error) {
+			// Kotatogram: the server refuses to pin sometimes (for example
+			// when the channel already has the maximum number of pinned
+			// messages) and used to fail completely silently: the box just
+			// closed and nothing told the user why. Show the reason the
+			// server gave, otherwise there is no way to tell a temporary
+			// failure from a hard limit.
+			const auto description = error.description();
+			LOG(("RPC Error in PinMessageBox: %1 %2: %3")
+				.arg(error.code())
+				.arg(error.type(),
+					description));
 			box->closeBox();
+			if (!description.isEmpty()) {
+				controller->showToast(
+					description,
+					ApiWrap::kJoinErrorDuration);
+			}
 		}).send();
 	};
 
