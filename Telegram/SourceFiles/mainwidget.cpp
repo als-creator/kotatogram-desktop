@@ -1541,6 +1541,8 @@ void MainWidget::showHistory(
 	if (noPeer) {
 		_controller->setActiveChatEntry(Dialogs::Key());
 		_controller->setChatStyleTheme(_controller->defaultChatTheme());
+		// Kotatogram: leaving a chat returns to the main tab.
+		_controller->showPrimaryChatsFilter();
 	}
 
 	if (onlyDialogs) {

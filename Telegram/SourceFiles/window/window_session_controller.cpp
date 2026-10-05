@@ -2134,6 +2134,23 @@ void SessionController::activateFirstChatsFilter() {
 	setActiveChatsFilter(session().data().chatsFilters().defaultId());
 }
 
+void SessionController::showPrimaryChatsFilter() {
+	// Kotatogram: go back to the tab marked as the main one. It has to be
+	// done when the chat list becomes visible again, otherwise a tab chosen
+	// with "make main" is remembered in the settings and shown in the
+	// context menu, yet the list keeps whatever tab was open before.
+	if (!isPrimary()
+		|| !session().data().chatsFilters().loaded()) {
+		return;
+	}
+	const auto primaryId = session().data().chatsFilters().primaryId();
+	if (activeChatsFilterCurrent() != primaryId) {
+		setActiveChatsFilter(
+			primaryId,
+			{ anim::type::normal, anim::activation::background });
+	}
+}
+
 bool SessionController::uniqueChatsInSearchResults(
 		const Dialogs::SearchState &state) const {
 	const auto global = (state.tab == Dialogs::ChatSearchTab::MyMessages)

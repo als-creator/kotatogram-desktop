@@ -453,6 +453,8 @@ public:
 	}
 	bool uniqueChatsInSearchResults(const Dialogs::SearchState &state) const;
 
+	void showPrimaryChatsFilter();
+
 	void openFolder(not_null<Data::Folder*> folder);
 	void closeFolder(bool force = false);
 	const rpl::variable<Data::Folder*> &openedFolder() const;
