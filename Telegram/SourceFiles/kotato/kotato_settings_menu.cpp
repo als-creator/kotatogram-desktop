@@ -573,6 +573,47 @@ void SetupKotatoFolders(
 	SettingsMenuJsonFilterSwitch(ktg_settings_filters_hide_edit, folders/hide_edit_button);
 	SettingsMenuJsonFilterSwitch(ktg_settings_filters_hide_folder_names, folders/hide_names);
 
+	// Kotatogram: the feed continues to the next unread chat on its own.
+	// The switch turns it off, the slider says how long the last chat has
+	// to be held still before the jump happens, so there is time to read
+	// the post that was reached.
+	SettingsMenuJsonSwitch(ktg_settings_auto_advance, auto_advance_enabled);
+
+	// Kotatogram: the slider works in tenths of a second, which is what
+	// the stored value is, and the label counts whole seconds.
+	{
+		const auto label = container->add(
+			object_ptr<Ui::LabelSimple>(
+				container,
+				st::ktgSettingsSliderLabel),
+			st::groupCallDelayLabelMargin);
+		const auto slider = container->add(
+			object_ptr<Ui::MediaSlider>(
+				container,
+				st::defaultContinuousSlider),
+			st::localStorageLimitMargin);
+		const auto delayText = [](int value) {
+			const auto seconds = value / 10;
+			return (seconds
+				? ktr("ktg_settings_auto_advance_delay", {
+					"count", QString::number(seconds) })
+				: ktr("ktg_settings_auto_advance_delay_none"));
+		};
+		const auto update = [=](int value) {
+			label->setText(delayText(value));
+			::Kotato::JsonSettings::Set("auto_advance_delay", value);
+			::Kotato::JsonSettings::Write();
+		};
+		slider->resize(st::defaultContinuousSlider.seekSize);
+		slider->setPseudoDiscrete(
+			300, // 0 to 30 seconds, in tenths
+			[](int val) { return val; },
+			::Kotato::JsonSettings::GetInt("auto_advance_delay"),
+			update);
+		label->setText(
+			delayText(::Kotato::JsonSettings::GetInt("auto_advance_delay")));
+	}
+
 	Ui::AddSkip(container);
 }
 
