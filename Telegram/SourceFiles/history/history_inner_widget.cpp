@@ -639,8 +639,17 @@ void HistoryInner::autoAdvanceNextChannel() {
 	// them, as it should.
 	markReadMetricsStale();
 	repaint();
-	const auto list = _controller->session().data().chatsFilters().chatsList(
-		filterId);
+	// Kotatogram: filter id 0 is the "All chats" tab and it is not a filter
+	// at all, it is the root list. chatsFilters().chatsList(0) is a
+	// different container that nothing ever fills (Session::chatsList() is
+	// what holds the chats with filter id 0), so the search looked for the
+	// target in an empty list and the continuation never happened on that
+	// tab and on the archive. The chat list picks it the same way, see
+	// Dialogs::Widget::refreshShownList().
+	const auto list = (filterId
+		? _controller->session().data().chatsFilters().chatsList(filterId)
+		: _controller->session().data().chatsList(
+			_controller->openedFolder().current()));
 	const auto &rows = list->indexed()->all();
 	// Kotatogram: continue the list forward only. A chat that stayed
 	// unread for a reason of its own is still a candidate, and taking the
