@@ -493,11 +493,17 @@ void FiltersMenu::showMenu(QPoint position, FilterId id) {
 			[=] { return _session->session().data().chatsList(); },
 			addAction,
 			std::move(customUnreadState));
-		if (defaultFilterId != id) {
+		// Kotatogram: the "All" tab can't become the main one. A stored 0
+		// is read back as "not set" by primaryId(), which resolves to the
+		// first folder on a premium account, so the item that used to be
+		// here promised to make "All" the main tab and silently made the
+		// first folder instead. Only offer to reset, like the tab strip
+		// does on the same tab.
+		if (defaultFilterId) {
 			_popupMenu->addAction(
-				ktr("ktg_filters_context_make_default"),
+				ktr("ktg_filters_context_reset_default"),
 				crl::guard(&_outer, [=] { setDefaultFilter(0); }),
-				&st::menuIconFave);
+				&st::menuIconUnfave);
 		}
 		addAction(
 			tr::lng_filters_setup_menu(tr::now),
