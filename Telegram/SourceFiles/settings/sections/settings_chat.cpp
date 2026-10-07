@@ -947,7 +947,7 @@ void BuildChatListOptionsSection(SectionBuilder &builder) {
 	builder.add(nullptr, [] {
 		return SearchEntry{
 			.id = u"chat/list-options"_q,
-			.title = u"Chat list options"_q,
+			.title = ktr("ktg_settings_chat_list_options"),
 			.keywords = { u"chat"_q, u"list"_q, u"options"_q },
 			.icon = { &st::menuIconChats },
 		};
@@ -959,7 +959,7 @@ void BuildChatListOptionsSection(SectionBuilder &builder) {
 	// opened forum, independent of the compact chat list.
 	const auto compactTopics = builder.addCheckbox({
 		.id = u"chat/compact-topics"_q,
-		.title = rpl::single(u"Compact topic list in nested chats"_q),
+		.title = rktr("ktg_settings_chat_list_compact_topics"),
 		.checked = Core::App().settings().chatListCompactTopics(),
 		.keywords = { u"compact"_q, u"topics"_q, u"forum"_q },
 	});
@@ -975,8 +975,7 @@ void BuildChatListOptionsSection(SectionBuilder &builder) {
 	// whole chat is one feed of the messages of all its topics.
 	const auto noNestedTopics = builder.addCheckbox({
 		.id = u"chat/unified-forum"_q,
-		.title = rpl::single(
-			u"Unified chat: open forums as one message feed"_q),
+		.title = rktr("ktg_settings_chat_list_unified_forum"),
 		.checked = Core::App().settings().chatListNoNestedTopics(),
 		.keywords = {
 			u"unified"_q,
@@ -1233,7 +1232,7 @@ void BuildSupportSection(SectionBuilder &builder) {
 	builder.addSkip();
 	builder.addSubsectionTitle({
 		.id = u"chat/support"_q,
-		.title = rpl::single(u"Support settings"_q),
+		.title = rktr("ktg_settings_support"),
 		.keywords = { u"support"_q },
 	});
 	builder.addSkip(st::settingsSendTypeSkip);
@@ -1271,7 +1270,7 @@ void BuildSupportSection(SectionBuilder &builder) {
 	}, [] {
 		return SearchEntry{
 			.id = u"chat/support/switch"_q,
-			.title = u"Send and switch behavior"_q,
+			.title = ktr("ktg_settings_send_switch_behavior"),
 			.keywords = { u"switch"_q, u"next"_q, u"previous"_q, u"reply"_q },
 		};
 	});
@@ -1280,7 +1279,7 @@ void BuildSupportSection(SectionBuilder &builder) {
 
 	const auto templatesAutocomplete = builder.addCheckbox({
 		.id = u"chat/support/templates"_q,
-		.title = rpl::single(u"Enable templates autocomplete"_q),
+		.title = rktr("ktg_settings_templates_autocomplete"),
 		.checked = session->settings().supportTemplatesAutocomplete(),
 		.keywords = { u"templates"_q, u"autocomplete"_q },
 	});
@@ -1295,7 +1294,7 @@ void BuildSupportSection(SectionBuilder &builder) {
 
 	const auto allSilent = builder.addCheckbox({
 		.id = u"chat/support/silent"_q,
-		.title = rpl::single(u"Send all messages without sound"_q),
+		.title = rktr("ktg_settings_send_without_sound"),
 		.checked = session->settings().supportAllSilent(),
 		.keywords = { u"silent"_q, u"sound"_q, u"mute"_q },
 	});
@@ -1310,7 +1309,7 @@ void BuildSupportSection(SectionBuilder &builder) {
 	builder.addSkip(st::settingsCheckboxesSkip);
 	builder.addSubsectionTitle({
 		.id = u"chat/support/chats-period"_q,
-		.title = rpl::single(u"Load chats for a period"_q),
+		.title = rktr("ktg_settings_load_chats_period"),
 		.keywords = { u"period"_q, u"days"_q },
 	});
 
@@ -1359,7 +1358,7 @@ void BuildSupportSection(SectionBuilder &builder) {
 	}, [] {
 		return SearchEntry{
 			.id = u"chat/support/chats-period/options"_q,
-			.title = u"Chat loading period options"_q,
+			.title = ktr("ktg_settings_chat_loading_period_options"),
 			.keywords = { u"week"_q, u"month"_q, u"year"_q },
 		};
 	});
@@ -2892,7 +2891,7 @@ void SetupSupport(
 		not_null<Ui::VerticalLayout*> container) {
 	Ui::AddSkip(container);
 
-	Ui::AddSubsectionTitle(container, rpl::single(u"Support settings"_q));
+	Ui::AddSubsectionTitle(container, rktr("ktg_settings_support"));
 
 	Ui::AddSkip(container, st::settingsSendTypeSkip);
 
@@ -2939,7 +2938,7 @@ void SetupSupport(
 
 	Ui::AddSkip(inner, st::settingsCheckboxesSkip);
 
-	Ui::AddSubsectionTitle(inner, rpl::single(u"Load chats for a period"_q));
+	Ui::AddSubsectionTitle(inner, rktr("ktg_settings_load_chats_period"));
 
 	SetupSupportChatsLimitSlice(controller, inner);
 

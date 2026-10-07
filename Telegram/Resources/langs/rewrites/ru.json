@@ -268,5 +268,14 @@
 	"ktg_news_feed_edit_about": "Каналы с галочкой показываются во вкладке «Новостные каналы».",
 	"ktg_tab_context_make_default": "Сделать вкладку основной",
 	"ktg_tab_context_reset_default": "Сбросить основную вкладку",
+	"ktg_settings_chat_list_options": "Параметры списка чатов",
+	"ktg_settings_chat_list_compact_topics": "Компактный список тем во вложенных чатах",
+	"ktg_settings_chat_list_unified_forum": "Единый чат: открывать форумы как одну ленту сообщений",
+	"ktg_settings_support": "Настройки поддержки",
+	"ktg_settings_send_switch_behavior": "Поведение при отправке и переключении",
+	"ktg_settings_templates_autocomplete": "Включить автодополнение шаблонов",
+	"ktg_settings_send_without_sound": "Отправлять все сообщения без звука",
+	"ktg_settings_load_chats_period": "Загружать чаты за период",
+	"ktg_settings_chat_loading_period_options": "Варианты периода загрузки чатов",
 	"dummy_last_string": ""
 }
