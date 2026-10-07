@@ -150,6 +150,7 @@ jobs:
           $API_ARGS \
           -D DESKTOP_APP_DISABLE_AUTOUPDATE=OFF \
           -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON \
+          -D KTGDESKTOP_BUILD_NUMBER=${{ github.run_number }} \
           $DEFINE
 
           cmake --build ../out --config Debug --parallel
