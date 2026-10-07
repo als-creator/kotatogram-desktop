@@ -212,5 +212,14 @@
 	"ktg_news_feed_edit_about": "Channels with a checkmark are shown in the news feed tab.",
 	"ktg_tab_context_make_default": "Make this tab the main one",
 	"ktg_tab_context_reset_default": "Reset the main tab",
+	"ktg_settings_chat_list_options": "Chat list options",
+	"ktg_settings_chat_list_compact_topics": "Compact topic list in nested chats",
+	"ktg_settings_chat_list_unified_forum": "Unified chat: open forums as one message feed",
+	"ktg_settings_support": "Support settings",
+	"ktg_settings_send_switch_behavior": "Send and switch behavior",
+	"ktg_settings_templates_autocomplete": "Enable templates autocomplete",
+	"ktg_settings_send_without_sound": "Send all messages without sound",
+	"ktg_settings_load_chats_period": "Load chats for a period",
+	"ktg_settings_chat_loading_period_options": "Chat loading period options",
 	"dummy_last_string": ""
 }
