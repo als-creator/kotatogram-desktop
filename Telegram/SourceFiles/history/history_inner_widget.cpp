@@ -142,11 +142,6 @@ namespace {
 
 constexpr auto kScrollDateHideTimeout = 1000;
 constexpr auto kScrollDateHideOnDayCrossingTimeout = crl::time(3000);
-// Kotatogram: the largest delay the setting offers, in seconds. It is
-// repeated here instead of taken from the settings module, because the
-// widget must not depend on where the limit happens to be declared, and
-// a value beyond it is only reachable by editing the settings file.
-constexpr auto kAutoAdvanceMaxDelaySeconds = 30;
 constexpr auto kUnloadHeavyPartsPages = 2;
 constexpr auto kClearUserpicsAfter = 50;
 
@@ -398,8 +393,7 @@ HistoryInner::HistoryInner(
 	[=] { mouseActionUpdate(QCursor::pos()); setCursor(_cursor); },
 	[=] { return window()->isActiveWindow(); })
 , _scrollDateCheck([this] { scrollDateCheck(); })
-, _scrollDateHideTimer([this] { scrollDateHideByTimer(); })
-, _autoAdvanceTimer([this] { autoAdvanceNextChannel(); }) {
+, _scrollDateHideTimer([this] { scrollDateHideByTimer(); }) {
 	_history->delegateMixin()->setCurrent(this);
 	if (_migrated) {
 		_migrated->delegateMixin()->setCurrent(this);
@@ -465,13 +459,23 @@ HistoryInner::HistoryInner(
 		update();
 	}, lifetime());
 	// Kotatogram: continue the chat list automatically when the end of a
-	// chat is reached. Guarded by a setting, and it follows whatever tab
-	// is open.
+	// chat is reached. Two settings guard it: one for the "All chats"
+	// tab (filter id 0), one for the "News channels" tab. The current
+	// tab decides which one applies, and the continuation only exists
+	// on those two built-in tabs.
 	const auto refreshAutoAdvance = [=] {
-		_autoAdvanceEnabled = ::Kotato::JsonSettings::GetBool(
-			"auto_advance_enabled");
+		const auto filterId = _controller->activeChatsFilterCurrent();
+		_autoAdvanceEnabled = (filterId == kNewsFeedFilterId)
+			? ::Kotato::JsonSettings::GetBool("auto_advance_newsfeed")
+			: (filterId == FilterId(0))
+			? ::Kotato::JsonSettings::GetBool("auto_advance_all")
+			: false;
 	};
-	::Kotato::JsonSettings::Events("auto_advance_enabled"
+	rpl::merge(
+		::Kotato::JsonSettings::Events("auto_advance_all"),
+		::Kotato::JsonSettings::Events("auto_advance_newsfeed")
+	) | rpl::on_next(refreshAutoAdvance, lifetime());
+	_controller->activeChatsFilter(
 	) | rpl::on_next(refreshAutoAdvance, lifetime());
 	refreshAutoAdvance();
 	_scroll->scrollTopValue(
@@ -563,18 +567,15 @@ HistoryInner::HistoryInner(
 
 void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
 	// Kotatogram: the chat list continues by itself. Reaching the very end
-	// of a chat opens the next unread chat of the current folder, but only
-	// after the end has been held still for autoAdvanceDelay(), see
-	// autoAdvanceNextChannel().
+	// of a chat opens the next unread chat of the current folder right
+	// away, there is no dwell to wait out, see autoAdvanceNextChannel().
 	//
 	// Kotatogram: this used to be restricted to the built-in "News feed"
-	// tab and to broadcast peers, which left the other folders without the
-	// continuation and was the only reason for the hardcoded filter id here.
-	// The folder is now taken from the controller, so the continuation
-	// follows whatever tab is open.
+	// tab and to broadcast peers. Now only the two built-in tabs take part
+	// in the continuation, "All chats" and "News channels", each guarded by
+	// its own setting, and the filter is taken from the controller.
 	if (!_autoAdvanceEnabled) {
 		_autoAdvanceArmed = false;
-		_autoAdvanceTimer.cancel();
 		return;
 	}
 	// Arm on the first move away from the end and fire only on the way
@@ -587,10 +588,6 @@ void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
 		return;
 	} else if (scrollTop < max) {
 		_autoAdvanceArmed = true;
-		// Leaving the end breaks the dwell: the user went back up to
-		// read on, so a pending continuation must not move the list
-		// under them once it expires.
-		_autoAdvanceTimer.cancel();
 		return;
 	} else if (!_autoAdvanceArmed || !_history->loadedAtBottom()) {
 		return;
@@ -598,20 +595,9 @@ void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
 	// One jump per arming, otherwise a chat opened at the bottom
 	// would chain into the next one and the next one. Disarming here
 	// also keeps repeated scroll events at the end from restarting the
-	// dwell over and over.
+	// jump over and over.
 	_autoAdvanceArmed = false;
-	_autoAdvanceTimer.callOnce(autoAdvanceDelay());
-}
-
-crl::time HistoryInner::autoAdvanceDelay() const {
-	// Kotatogram: the dwell is a setting now, in whole seconds, so that
-	// there is a real chance to read the last post of a chat before the
-	// list moves on. Zero means "switch right away". The clamp keeps a
-	// hand edited settings file from producing a silly wait.
-	return crl::time(std::clamp(
-		::Kotato::JsonSettings::GetInt("auto_advance_delay"),
-		0,
-		kAutoAdvanceMaxDelaySeconds)) * 1000;
+	autoAdvanceNextChannel();
 }
 
 void HistoryInner::autoAdvanceNextChannel() {
@@ -621,9 +607,9 @@ void HistoryInner::autoAdvanceNextChannel() {
 	if (!_history->loadedAtBottom()) {
 		return;
 	}
-	// The content may have grown during the dwell, which moves the end
-	// away without emitting a scroll event. Staying where the user left
-	// them is better than yanking them into the next channel, so the
+	// The content may have grown since the end was reached, which moves
+	// the end away without emitting a scroll event. Staying where the user
+	// left them is better than yanking them into the next channel, so the
 	// bottom has to be reached again from the top before continuing.
 	const auto max = _scroll->scrollTopMax();
 	if ((max <= 0) || (_scroll->scrollTop() < max)) {
@@ -633,7 +619,7 @@ void HistoryInner::autoAdvanceNextChannel() {
 	// jump below destroys this widget before Qt gets to that paint, so the
 	// post that was reached stayed unread and the counter did not go down.
 	// Force one paint now, while the widget is still alive. It is safe
-	// here: this runs from the dwell timer, never from inside a paint.
+	// here: this runs from a scroll callback, never from inside a paint.
 	// Whether the messages are actually marked read is still decided by
 	// markingMessagesRead(), so an unfocused window keeps not marking
 	// them, as it should.
@@ -701,7 +687,7 @@ void HistoryInner::autoAdvanceNextChannel() {
 	// The jump is postponed anyway, because showHistory() rebuilds the
 	// owned HistoryInner and QScrollArea::setWidget() deletes the
 	// previous one, which is this widget. Doing that straight from the
-	// dwell timer, while Qt may still be dispatching an event to this
+	// scroll callback, while Qt may still be dispatching an event to this
 	// very widget, freed it before Qt was done with the dispatch, and the
 	// freed memory was walked as an event filter list later on, crashing
 	// on the next chat open.

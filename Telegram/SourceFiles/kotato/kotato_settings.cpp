@@ -329,20 +329,15 @@ const std::map<QString, Definition, std::greater<QString>> DefinitionMap {
 		.type = SettingType::IntSetting,
 		.defaultValue = 0,
 		.limitHandler = IntLimitMin(0), }},
-	{ "auto_advance_enabled", {
+	// Kotatogram: the chat list continues by itself only on the two
+	// built-in tabs, "All chats" (filter id 0) and "News channels"
+	// (kNewsFeedFilterId), and each is guarded by its own setting.
+	{ "auto_advance_all", {
 		.type = SettingType::BoolSetting,
 		.defaultValue = true, }},
-	// Kotatogram: whole seconds, matching the slider in the settings menu
-	// exactly (0 to 30 seconds, 0 meaning "switch right away"). The limit
-	// has to cover every value the slider can produce, otherwise a value
-	// above the last step leaves the slider with no step to select.
-	// Seconds rather than fractions on purpose: a fraction cannot be shown
-	// in the label without rounding, and a rounded label disagrees with
-	// the actual delay.
-	{ "auto_advance_delay", {
-		.type = SettingType::IntSetting,
-		.defaultValue = 10,
-		.limitHandler = IntLimit(0, 30, 10), }},
+	{ "auto_advance_newsfeed", {
+		.type = SettingType::BoolSetting,
+		.defaultValue = true, }},
 	{ "folders/count_unmuted_only", {
 		.type = SettingType::BoolSetting,
 		.defaultValue = false, }},

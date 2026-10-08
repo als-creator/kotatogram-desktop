@@ -529,11 +529,10 @@ private:
 	void setupSwipeReplyAndBack();
 	// Kotatogram: the chat list continues to the next unread chat
 	// when the user scrolls a chat to its very end. This only decides
-	// that the end was reached and arms the dwell, the jump itself is
-	// made by autoAdvanceNextChannel() once the dwell has expired.
+	// that the end was reached and arms the jump, which autoAdvanceNextChannel()
+	// then performs right away.
 	void checkAutoAdvanceNextChannel(int scrollTop);
 	void autoAdvanceNextChannel();
-	[[nodiscard]] crl::time autoAdvanceDelay() const;
 	[[nodiscard]] bool hasCopyRestriction(HistoryItem *item = nullptr) const;
 	[[nodiscard]] bool hasCopyMediaRestriction(
 		not_null<HistoryItem*> item) const;
@@ -550,10 +549,11 @@ private:
 
 	int _accessibilityFocusedIndex = -1;
 	bool _autoAdvanceArmed = false;
-	// Kotatogram: a cached copy of the "auto_advance_enabled" setting.
-	// It is checked on every scroll value change, and reading the settings
-	// hash there means hashing a string on every scroll event. The cache
-	// is refreshed from the settings event stream instead.
+	// Kotatogram: a cached copy of "whether the current tab continues
+	// by itself". It is checked on every scroll value change, and reading
+	// the settings hash there means hashing a string on every scroll
+	// event. The cache is refreshed from the settings event stream and
+	// from the current tab changes instead.
 	bool _autoAdvanceEnabled = true;
 	HistoryItem *_accessibilityFocusedItem = nullptr;
 	mutable const HistoryView::Element *_activeColumnsView = nullptr;
@@ -687,11 +687,6 @@ private:
 	bool _scrollDateAfterDayCrossing = false;
 	ClickHandlerPtr _scrollDateLink;
 	ClickHandlerPtr _forumThreadBarLink;
-
-	// Kotatogram: the news feed dwell, see checkAutoAdvanceNextChannel().
-	// Declared after the other timers to keep the order of the constructor
-	// initialiser list.
-	base::Timer _autoAdvanceTimer;
 
 	[[nodiscard]] HistoryView::ElementOverlayHost &ensureOverlayHost();
 	std::unique_ptr<HistoryView::ElementOverlayHost> _overlayHost;

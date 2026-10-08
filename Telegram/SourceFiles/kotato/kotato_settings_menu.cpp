@@ -376,6 +376,15 @@ void SetupKotatoChats(
 	SettingsMenuJsonSwitch(ktg_settings_emoji_sidebar, emoji_sidebar);
 	SettingsMenuJsonSwitch(ktg_settings_emoji_sidebar_right_click, emoji_sidebar_right_click);
 
+	// Kotatogram: the chat list continues by itself on the two built-in
+	// tabs. Each tab is guarded by its own switch, so the "All chats" tab
+	// and the "News channels" tab can be set up independently.
+	SettingsMenuJsonSwitch(ktg_settings_auto_advance_all, auto_advance_all);
+	SettingsMenuJsonSwitch(ktg_settings_auto_advance_newsfeed, auto_advance_newsfeed);
+
+	Ui::AddSkip(container);
+	Ui::AddDividerText(container, rktr("ktg_settings_auto_advance_about"));
+
 	Ui::AddSkip(container);
 	Ui::AddDivider(container);
 	Ui::AddSkip(container);
@@ -572,47 +581,6 @@ void SetupKotatoFolders(
 	SettingsMenuJsonFilterSwitch(ktg_settings_filters_hide_all, folders/hide_all_chats);
 	SettingsMenuJsonFilterSwitch(ktg_settings_filters_hide_edit, folders/hide_edit_button);
 	SettingsMenuJsonFilterSwitch(ktg_settings_filters_hide_folder_names, folders/hide_names);
-
-	// Kotatogram: the feed continues to the next unread chat on its own.
-	// The switch turns it off, the slider says how long the last chat has
-	// to be held still before the jump happens, so there is time to read
-	// the post that was reached.
-	SettingsMenuJsonSwitch(ktg_settings_auto_advance, auto_advance_enabled);
-
-	// Kotatogram: whole seconds, stored as they are shown. The number of
-	// steps is one more than the largest value, because the steps are the
-	// indices 0 to valuesCount - 1.
-	{
-		const auto label = container->add(
-			object_ptr<Ui::LabelSimple>(
-				container,
-				st::ktgSettingsSliderLabel),
-			st::groupCallDelayLabelMargin);
-		const auto slider = container->add(
-			object_ptr<Ui::MediaSlider>(
-				container,
-				st::defaultContinuousSlider),
-			st::localStorageLimitMargin);
-		const auto delayText = [](int seconds) {
-			return (seconds
-				? ktr("ktg_settings_auto_advance_delay", {
-					"count", QString::number(seconds) })
-				: ktr("ktg_settings_auto_advance_delay_none"));
-		};
-		const auto update = [=](int seconds) {
-			label->setText(delayText(seconds));
-			::Kotato::JsonSettings::Set("auto_advance_delay", seconds);
-			::Kotato::JsonSettings::Write();
-		};
-		slider->resize(st::defaultContinuousSlider.seekSize);
-		slider->setPseudoDiscrete(
-			31, // 0 to 30 seconds
-			[](int val) { return val; },
-			::Kotato::JsonSettings::GetInt("auto_advance_delay"),
-			update);
-		label->setText(
-			delayText(::Kotato::JsonSettings::GetInt("auto_advance_delay")));
-	}
 
 	Ui::AddSkip(container);
 }
