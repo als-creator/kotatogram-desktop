@@ -465,13 +465,16 @@ HistoryInner::HistoryInner(
 	// decides which one applies, so the continuation works on every tab.
 	const auto refreshAutoAdvance = [=] {
 		const auto filterId = _controller->activeChatsFilterCurrent();
+		_autoAdvanceBroadcastOnly = ::Kotato::JsonSettings::GetBool(
+			"auto_advance_broadcast_only");
 		_autoAdvanceEnabled = (filterId == kNewsFeedFilterId)
 			? ::Kotato::JsonSettings::GetBool("auto_advance_newsfeed")
 			: ::Kotato::JsonSettings::GetBool("auto_advance_all");
 	};
 	rpl::merge(
 		::Kotato::JsonSettings::Events("auto_advance_all"),
-		::Kotato::JsonSettings::Events("auto_advance_newsfeed")
+		::Kotato::JsonSettings::Events("auto_advance_newsfeed"),
+		::Kotato::JsonSettings::Events("auto_advance_broadcast_only")
 	) | rpl::on_next(refreshAutoAdvance, lifetime());
 	_controller->activeChatsFilter(
 	) | rpl::on_next(refreshAutoAdvance, lifetime());
@@ -567,42 +570,140 @@ void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
 	// Kotatogram: the chat list continues by itself. Reaching the very end
 	// of a chat opens the next unread chat of the current folder right
 	// away, there is no dwell to wait out, see autoAdvanceNextChannel().
+	// Reaching the very top opens the previous chat of the folder, which
+	// is how the user steps back into a channel they scrolled past, see
+	// autoAdvancePreviousChannel(). The two directions are independent, so
+	// the carousel goes both ways while the tab and the settings still
+	// allow it, see findAutoAdvanceTarget().
 	//
 	// Kotatogram: this used to be restricted to the built-in "News feed"
 	// tab and to broadcast peers. Now the continuation follows whatever
 	// tab is open -- "All chats", custom folders and the archive share
 	// the "All chats" setting, the "News channels" tab has its own -- and
-	// the filter is taken from the controller.
+	// the filter is taken from the controller. Whether broadcast channels
+	// only are stepped through is decided by the auto-advance scope.
 	if (!_autoAdvanceEnabled) {
 		_autoAdvanceArmed = false;
+		_autoAdvanceTopArmed = false;
 		return;
 	}
-	// Arm on the first move away from the end and fire only on the way
-	// back, so that opening a chat at its newest message (which lands
-	// at the bottom right away) does not walk the whole list away.
 	const auto max = _scroll->scrollTopMax();
 	if (max <= 0) {
 		// The content is not scrollable yet, or it already fits the
-		// view, so there is no end to reach.
-		return;
-	} else if (scrollTop < max) {
-		_autoAdvanceArmed = true;
-		return;
-	} else if (!_autoAdvanceArmed || !_history->loadedAtBottom()) {
+		// view, so there is no end (and no top) to reach.
 		return;
 	}
-	// One jump per arming, otherwise a chat opened at the bottom
-	// would chain into the next one and the next one. Disarming here
-	// also keeps repeated scroll events at the end from restarting the
-	// jump over and over.
-	_autoAdvanceArmed = false;
-	autoAdvanceNextChannel();
+	// Bottom: arm on the first move away from the end and fire only on
+	// the way back, so that opening a chat at its newest message (which
+	// lands at the bottom right away) does not walk the whole list away.
+	if (scrollTop < max) {
+		_autoAdvanceArmed = true;
+	} else if (_autoAdvanceArmed && _history->loadedAtBottom()) {
+		// One jump per arming, otherwise a chat opened at the bottom
+		// would chain into the next one and the next one. Disarming here
+		// also keeps repeated scroll events at the end from restarting the
+		// jump over and over.
+		_autoAdvanceArmed = false;
+		autoAdvanceNextChannel();
+	}
+	// Top: the mirror image of the bottom. A chat is never opened at its
+	// top, so reaching the top is always a deliberate scroll, and arming
+	// on the first move away from it is enough. This is what pulls the
+	// user back to the previous channel after they scrolled past a
+	// message.
+	if (scrollTop > 0) {
+		_autoAdvanceTopArmed = true;
+	} else if (_autoAdvanceTopArmed && _history->loadedAtTop()) {
+		_autoAdvanceTopArmed = false;
+		autoAdvancePreviousChannel();
+	}
+}
+
+History *HistoryInner::findAutoAdvanceTarget(bool forward) const {
+	// Kotatogram: the folder is whatever tab is open, not the hardcoded
+	// news feed id, and any chat counts, not only broadcast ones -- unless
+	// the "broadcast channels only" scope is chosen.
+	const auto filterId = _controller->activeChatsFilterCurrent();
+	// Kotatogram: filter id 0 is the "All chats" tab and it is not a filter
+	// at all, it is the root list. chatsFilters().chatsList(0) is a
+	// different container that nothing ever fills (Session::chatsList() is
+	// what holds the chats with filter id 0), so the search looked for the
+	// target in an empty list and the continuation never happened on that
+	// tab and on the archive. The chat list picks it the same way, see
+	// Dialogs::Widget::refreshShownList().
+	const auto list = (filterId
+		? _controller->session().data().chatsFilters().chatsList(filterId)
+		: _controller->session().data().chatsList(
+			_controller->openedFolder().current()));
+	const auto &rows = list->indexed()->all();
+	const auto matches = [&](const History *history) {
+		if (!history || (history == _history)) {
+			return false;
+		}
+		// Kotatogram: a chat whose slice does not reach the bottom opens
+		// on a spinner or on a half loaded view, which is what the
+		// continuation looked like when it landed on such a chat.
+		// loadedAtBottom() defaults to true, so a chat that was never
+		// opened is still a valid candidate.
+		if (_autoAdvanceBroadcastOnly && !history->peer->isBroadcast()) {
+			return false;
+		} else if (history->useTopPromotion()) {
+			return false;
+		} else if (!history->peer->computeUnavailableReason().isEmpty()) {
+			return false;
+		}
+		// Forward targets the next unread chat, backward targets the chat
+		// that the user just passed -- it may have been marked read by
+		// then, so stepping back does not wait for an unread one.
+		return forward ? (history->unreadCount() > 0) : true;
+	};
+	const auto size = int(rows.size());
+	auto current = -1;
+	for (auto i = 0; i != size; ++i) {
+		if (rows[i]->history() == _history) {
+			current = i;
+			break;
+		}
+	}
+	// A channel that stopped matching the filter while it was open is not
+	// in the list any more, and then there is no current position to start
+	// from, so the whole list is the range worth looking at.
+	const auto inList = (current >= 0);
+	const auto scan = [&](int begin, int end, int step) -> History * {
+		for (auto i = begin; i != end; i += step) {
+			if (const auto history = rows[i]->history()) {
+				if (matches(history)) {
+					return history;
+				}
+			}
+		}
+		return nullptr;
+	};
+	if (!inList) {
+		return forward
+			? scan(0, size, 1)
+			: scan(size - 1, -1, -1);
+	}
+	// Forward: scan the part of the list after the current chat, then
+	// wrap around to the part before it, so the carousel keeps turning
+	// until there are no unread chats left anywhere in the list.
+	// Backward: the mirror image -- first the part before the current
+	// chat, then the part after it, wrapping around the same way.
+	if (forward) {
+		if (const auto found = scan(current + 1, size, 1)) {
+			return found;
+		}
+		return scan(0, current, 1);
+	}
+	if (const auto found = scan(current - 1, -1, -1)) {
+		return found;
+	}
+	return scan(size - 1, current, -1);
 }
 
 void HistoryInner::autoAdvanceNextChannel() {
-	// Kotatogram: the folder is whatever tab is open, not the hardcoded
-	// news feed id, and any chat counts, not only broadcast ones.
-	const auto filterId = _controller->activeChatsFilterCurrent();
+	// Kotatogram: the jump itself, see findAutoAdvanceTarget() for what
+	// counts as a candidate.
 	if (!_history->loadedAtBottom()) {
 		return;
 	}
@@ -624,58 +725,7 @@ void HistoryInner::autoAdvanceNextChannel() {
 	// them, as it should.
 	markReadMetricsStale();
 	repaint();
-	// Kotatogram: filter id 0 is the "All chats" tab and it is not a filter
-	// at all, it is the root list. chatsFilters().chatsList(0) is a
-	// different container that nothing ever fills (Session::chatsList() is
-	// what holds the chats with filter id 0), so the search looked for the
-	// target in an empty list and the continuation never happened on that
-	// tab and on the archive. The chat list picks it the same way, see
-	// Dialogs::Widget::refreshShownList().
-	const auto list = (filterId
-		? _controller->session().data().chatsFilters().chatsList(filterId)
-		: _controller->session().data().chatsList(
-			_controller->openedFolder().current()));
-	const auto &rows = list->indexed()->all();
-	// Kotatogram: continue the list forward only. A chat that stayed
-	// unread for a reason of its own is still a candidate, and taking the
-	// first candidate in the list order then dragged the user back into a
-	// chat the list had already been to, bouncing back and forth over the
-	// last few chats once the unread ones ran out. Anything before the
-	// chat being read is behind the user, and must stay there.
-	const auto findTarget = [&](bool onlyAfterCurrent) -> History * {
-		auto passedCurrent = !onlyAfterCurrent;
-		for (const auto &row : rows) {
-			const auto history = row->history();
-			if (!history) {
-				continue;
-			} else if (history == _history) {
-				passedCurrent = true;
-				continue;
-			} else if (!passedCurrent) {
-				continue;
-			}
-			const auto peer = history->peer;
-			// Kotatogram: a chat whose slice does not reach the bottom
-			// opens on a spinner or on a half loaded view, which is what
-			// the continuation looked like when it landed on such a
-			// chat. loadedAtBottom() defaults to true, so a chat that was
-			// never opened is still a valid candidate.
-			if ((history->unreadCount() > 0)
-				&& history->loadedAtBottom()
-				&& !history->useTopPromotion()
-				&& peer->computeUnavailableReason().isEmpty()) {
-				return history;
-			}
-		}
-		return nullptr;
-	};
-	// A channel that stopped matching the filter while it was open is not
-	// in the list any more, and then there is no current position to start
-	// after, so the whole list is the range worth looking at.
-	const auto inList = ranges::any_of(rows, [&](const auto &row) {
-		return (row->history() == _history);
-	});
-	const auto found = findTarget(inList);
+	const auto found = findAutoAdvanceTarget(true);
 	if (!found) {
 		return;
 	}
@@ -691,6 +741,31 @@ void HistoryInner::autoAdvanceNextChannel() {
 	// freed memory was walked as an event filter list later on, crashing
 	// on the next chat open.
 	// The guard drops the call if this widget dies first.
+	const auto target = not_null<History*>(found);
+	const auto controller = _controller;
+	Ui::PostponeCall(crl::guard(this, [=] {
+		auto params = Window::SectionShow(
+			Window::SectionShow::Way::ClearStack);
+		controller->showPeerHistory(target, params);
+	}));
+}
+
+void HistoryInner::autoAdvancePreviousChannel() {
+	// Kotatogram: the mirror image of autoAdvanceNextChannel(). Reaching
+	// the very top of a chat opens the chat that comes before it in the
+	// tab's list, wrapping around to the end of the list when the current
+	// chat is the first one there. This is how the user steps back into a
+	// channel after scrolling past a message. The same paint, postpone and
+	// crash-safety reasons apply as in autoAdvanceNextChannel().
+	if (!_history->loadedAtTop() || (_scroll->scrollTop() > 0)) {
+		return;
+	}
+	markReadMetricsStale();
+	repaint();
+	const auto found = findAutoAdvanceTarget(false);
+	if (!found) {
+		return;
+	}
 	const auto target = not_null<History*>(found);
 	const auto controller = _controller;
 	Ui::PostponeCall(crl::guard(this, [=] {

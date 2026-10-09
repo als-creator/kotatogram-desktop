@@ -340,6 +340,12 @@ const std::map<QString, Definition, std::greater<QString>> DefinitionMap {
 	{ "auto_advance_newsfeed", {
 		.type = SettingType::BoolSetting,
 		.defaultValue = false, }},
+	// Kotatogram: what the auto advance scrolls through, every chat of
+	// the tab or broadcast channels only. The checkboxes in Settings >
+	// Kotatogram > Chats choose between the two.
+	{ "auto_advance_broadcast_only", {
+		.type = SettingType::BoolSetting,
+		.defaultValue = false, }},
 	{ "folders/count_unmuted_only", {
 		.type = SettingType::BoolSetting,
 		.defaultValue = false, }},

@@ -530,9 +530,19 @@ private:
 	// Kotatogram: the chat list continues to the next unread chat
 	// when the user scrolls a chat to its very end. This only decides
 	// that the end was reached and arms the jump, which autoAdvanceNextChannel()
-	// then performs right away.
+	// then performs right away. Reaching the very top opens the previous
+	// chat of the tab instead, which is how the user steps back into a
+	// channel they scrolled past, see autoAdvancePreviousChannel().
 	void checkAutoAdvanceNextChannel(int scrollTop);
 	void autoAdvanceNextChannel();
+	void autoAdvancePreviousChannel();
+	// Kotatogram: finds the next chat of the tab's list the auto-advance
+	// should open (or the previous one with forward == false), following
+	// the current tab, the settings and the "broadcast channels only"
+	// scope. The search wraps around the list, so the carousel keeps
+	// turning while there is anything unread left in the forward
+	// direction, and goes back through the list in the backwards one.
+	[[nodiscard]] History *findAutoAdvanceTarget(bool forward) const;
 	[[nodiscard]] bool hasCopyRestriction(HistoryItem *item = nullptr) const;
 	[[nodiscard]] bool hasCopyMediaRestriction(
 		not_null<HistoryItem*> item) const;
@@ -549,6 +559,10 @@ private:
 
 	int _accessibilityFocusedIndex = -1;
 	bool _autoAdvanceArmed = false;
+	// Kotatogram: the mirror image of _autoAdvanceArmed, armed when the
+	// user scrolls away from the very top of the chat and fired when they
+	// come back to it, jumping to the previous channel of the tab.
+	bool _autoAdvanceTopArmed = false;
 	// Kotatogram: a cached copy of "whether the current tab continues
 	// by itself". It is checked on every scroll value change, and reading
 	// the settings hash there means hashing a string on every scroll
@@ -557,6 +571,10 @@ private:
 	// "off by default" state of the setting, until refreshAutoAdvance()
 	// runs in the constructor.
 	bool _autoAdvanceEnabled = false;
+	// Kotatogram: a cached copy of "whether the auto-advance is limited
+	// to broadcast channels". It is cached and refreshed together with
+	// _autoAdvanceEnabled, for the same reason.
+	bool _autoAdvanceBroadcastOnly = false;
 	HistoryItem *_accessibilityFocusedItem = nullptr;
 	mutable const HistoryView::Element *_activeColumnsView = nullptr;
 	mutable std::vector<HistoryView::MessageSubItem> _activeColumns;
