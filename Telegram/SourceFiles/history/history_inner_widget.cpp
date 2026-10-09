@@ -459,17 +459,15 @@ HistoryInner::HistoryInner(
 		update();
 	}, lifetime());
 	// Kotatogram: continue the chat list automatically when the end of a
-	// chat is reached. Two settings guard it: one for the "All chats"
-	// tab (filter id 0), one for the "News channels" tab. The current
-	// tab decides which one applies, and the continuation only exists
-	// on those two built-in tabs.
+	// chat is reached. Two settings guard it: the "News channels" tab has
+	// a switch of its own, and every other tab -- "All chats", custom
+	// folders, the archive -- shares the "All chats" one. The current tab
+	// decides which one applies, so the continuation works on every tab.
 	const auto refreshAutoAdvance = [=] {
 		const auto filterId = _controller->activeChatsFilterCurrent();
 		_autoAdvanceEnabled = (filterId == kNewsFeedFilterId)
 			? ::Kotato::JsonSettings::GetBool("auto_advance_newsfeed")
-			: (filterId == FilterId(0))
-			? ::Kotato::JsonSettings::GetBool("auto_advance_all")
-			: false;
+			: ::Kotato::JsonSettings::GetBool("auto_advance_all");
 	};
 	rpl::merge(
 		::Kotato::JsonSettings::Events("auto_advance_all"),
@@ -571,9 +569,10 @@ void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
 	// away, there is no dwell to wait out, see autoAdvanceNextChannel().
 	//
 	// Kotatogram: this used to be restricted to the built-in "News feed"
-	// tab and to broadcast peers. Now only the two built-in tabs take part
-	// in the continuation, "All chats" and "News channels", each guarded by
-	// its own setting, and the filter is taken from the controller.
+	// tab and to broadcast peers. Now the continuation follows whatever
+	// tab is open -- "All chats", custom folders and the archive share
+	// the "All chats" setting, the "News channels" tab has its own -- and
+	// the filter is taken from the controller.
 	if (!_autoAdvanceEnabled) {
 		_autoAdvanceArmed = false;
 		return;

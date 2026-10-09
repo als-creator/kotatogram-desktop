@@ -329,9 +329,10 @@ const std::map<QString, Definition, std::greater<QString>> DefinitionMap {
 		.type = SettingType::IntSetting,
 		.defaultValue = 0,
 		.limitHandler = IntLimitMin(0), }},
-	// Kotatogram: the chat list continues by itself only on the two
-	// built-in tabs, "All chats" (filter id 0) and "News channels"
-	// (kNewsFeedFilterId), and each is guarded by its own setting.
+	// Kotatogram: the chat list continues by itself on every tab. "All
+	// chats" (filter id 0), custom folders and the archive are guarded by
+	// auto_advance_all, the "News channels" tab (kNewsFeedFilterId) by
+	// auto_advance_newsfeed.
 	{ "auto_advance_all", {
 		.type = SettingType::BoolSetting,
 		.defaultValue = true, }},

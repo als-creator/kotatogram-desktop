@@ -83,7 +83,7 @@
 	"ktg_settings_filters_only_unmuted_counter": "Do not count muted chats",
 	"ktg_settings_filters_hide_edit": "Hide Edit button",
 	"ktg_settings_filters_hide_folder_names": "Compact folders",
-	"ktg_settings_auto_advance_all": "Auto-advance on the \"All chats\" tab",
+	"ktg_settings_auto_advance_all": "Auto-advance on the other tabs",
 	"ktg_settings_auto_advance_newsfeed": "Auto-advance on the \"News channels\" tab",
 	"ktg_settings_auto_advance_about": "When you scroll a chat to its end, the next unread chat of the tab opens automatically.",
 	"ktg_settings_top_bar_mute": "Mute in profile top bar",
