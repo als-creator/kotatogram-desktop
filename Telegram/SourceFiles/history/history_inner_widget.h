@@ -553,8 +553,10 @@ private:
 	// by itself". It is checked on every scroll value change, and reading
 	// the settings hash there means hashing a string on every scroll
 	// event. The cache is refreshed from the settings event stream and
-	// from the current tab changes instead.
-	bool _autoAdvanceEnabled = true;
+	// from the current tab changes instead. It starts off, matching the
+	// "off by default" state of the setting, until refreshAutoAdvance()
+	// runs in the constructor.
+	bool _autoAdvanceEnabled = false;
 	HistoryItem *_accessibilityFocusedItem = nullptr;
 	mutable const HistoryView::Element *_activeColumnsView = nullptr;
 	mutable std::vector<HistoryView::MessageSubItem> _activeColumns;

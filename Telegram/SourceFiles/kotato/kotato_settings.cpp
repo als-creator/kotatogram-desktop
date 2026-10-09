@@ -332,13 +332,14 @@ const std::map<QString, Definition, std::greater<QString>> DefinitionMap {
 	// Kotatogram: the chat list continues by itself on every tab. "All
 	// chats" (filter id 0), custom folders and the archive are guarded by
 	// auto_advance_all, the "News channels" tab (kNewsFeedFilterId) by
-	// auto_advance_newsfeed.
+	// auto_advance_newsfeed. Both are off by default and are turned on by
+	// the switches in Settings > Kotatogram > Chats.
 	{ "auto_advance_all", {
 		.type = SettingType::BoolSetting,
-		.defaultValue = true, }},
+		.defaultValue = false, }},
 	{ "auto_advance_newsfeed", {
 		.type = SettingType::BoolSetting,
-		.defaultValue = true, }},
+		.defaultValue = false, }},
 	{ "folders/count_unmuted_only", {
 		.type = SettingType::BoolSetting,
 		.defaultValue = false, }},
