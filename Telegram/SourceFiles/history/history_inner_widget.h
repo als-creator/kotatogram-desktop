@@ -576,12 +576,6 @@ private:
 	// to broadcast channels". It is cached and refreshed together with
 	// _autoAdvanceEnabled, for the same reason.
 	bool _autoAdvanceBroadcastOnly = false;
-	// Kotatogram: a short dwell that lets the carousel keep turning
-	// through the already-read chats once nothing unread is left: they
-	// open at their end, where there is no end left to scroll to, so the
-	// feed would stall on the very first of them without this timer. Any
-	// scroll away cancels it, see checkAutoAdvanceNextChannel().
-	base::Timer _autoAdvanceTimer;
 	HistoryItem *_accessibilityFocusedItem = nullptr;
 	mutable const HistoryView::Element *_activeColumnsView = nullptr;
 	mutable std::vector<HistoryView::MessageSubItem> _activeColumns;
@@ -709,6 +703,13 @@ private:
 	Ui::Animations::Simple _scrollDateOpacity;
 	SingleQueuedInvokation _scrollDateCheck;
 	base::Timer _scrollDateHideTimer;
+	// Kotatogram: a short dwell that lets the carousel keep turning
+	// through the already-read chats once nothing unread is left: they
+	// open at their end, where there is no end left to scroll to, so the
+	// feed would stall on the very first of them without this timer. Any
+	// scroll away cancels it, see checkAutoAdvanceNextChannel(). Declared
+	// here, after the other timers, to match the initializer list order.
+	base::Timer _autoAdvanceTimer;
 	Element *_scrollDateLastItem = nullptr;
 	int _scrollDateLastItemTop = 0;
 	bool _scrollDateAfterDayCrossing = false;
