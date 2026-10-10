@@ -413,7 +413,9 @@ void SetupKotatoChats(
 			&& ::Kotato::JsonSettings::GetBool(
 				"auto_advance_broadcast_only"));
 	}) | rpl::on_next([scopeBroadcastOnly](bool checked) {
-		scopeBroadcastOnly->setChecked(false, anim::type::normal);
+		scopeBroadcastOnly->setChecked(
+			false,
+			Ui::Checkbox::NotifyAboutChange::DontNotify);
 		::Kotato::JsonSettings::Set("auto_advance_broadcast_only", false);
 		::Kotato::JsonSettings::Write();
 	}, container->lifetime());
@@ -424,7 +426,9 @@ void SetupKotatoChats(
 			&& !::Kotato::JsonSettings::GetBool(
 				"auto_advance_broadcast_only"));
 	}) | rpl::on_next([scopeEveryChat](bool checked) {
-		scopeEveryChat->setChecked(false, anim::type::normal);
+		scopeEveryChat->setChecked(
+			false,
+			Ui::Checkbox::NotifyAboutChange::DontNotify);
 		::Kotato::JsonSettings::Set("auto_advance_broadcast_only", true);
 		::Kotato::JsonSettings::Write();
 	}, container->lifetime());

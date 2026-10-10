@@ -658,9 +658,10 @@ History *HistoryInner::findAutoAdvanceTarget(bool forward) const {
 		return forward ? (history->unreadCount() > 0) : true;
 	};
 	const auto size = int(rows.size());
+	const auto first = rows.begin();
 	auto current = -1;
 	for (auto i = 0; i != size; ++i) {
-		if (rows[i]->history() == _history) {
+		if ((*(first + i))->history() == _history) {
 			current = i;
 			break;
 		}
@@ -671,7 +672,7 @@ History *HistoryInner::findAutoAdvanceTarget(bool forward) const {
 	const auto inList = (current >= 0);
 	const auto scan = [&](int begin, int end, int step) -> History * {
 		for (auto i = begin; i != end; i += step) {
-			if (const auto history = rows[i]->history()) {
+			if (const auto history = (*(first + i))->history()) {
 				if (matches(history)) {
 					return history;
 				}
