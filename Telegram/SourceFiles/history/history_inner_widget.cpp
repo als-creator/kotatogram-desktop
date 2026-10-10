@@ -393,8 +393,7 @@ HistoryInner::HistoryInner(
 	[=] { mouseActionUpdate(QCursor::pos()); setCursor(_cursor); },
 	[=] { return window()->isActiveWindow(); })
 , _scrollDateCheck([this] { scrollDateCheck(); })
-, _scrollDateHideTimer([this] { scrollDateHideByTimer(); })
-, _autoAdvanceTimer([this] { autoAdvanceNextChannel(); }) {
+, _scrollDateHideTimer([this] { scrollDateHideByTimer(); }) {
 	_history->delegateMixin()->setCurrent(this);
 	if (_migrated) {
 		_migrated->delegateMixin()->setCurrent(this);
@@ -567,20 +566,18 @@ HistoryInner::HistoryInner(
 	setupSwipeReplyAndBack();
 }
 
-// Kotatogram: how long a fully read chat shown at its end waits before
-// the carousel continues over it. Long enough to look at the newest
-// post, short enough that the feed does not stall on read chats.
-constexpr auto kAutoAdvanceReadChatDwellMs = 2000;
-
 void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
-	// Kotatogram: the chat list continues by itself. Reaching the very end
-	// of a chat opens the next unread chat of the current folder right
-	// away, there is no dwell to wait out, see autoAdvanceNextChannel().
-	// Scrolling up by about a screen opens the previous chat of the
-	// folder, which is how the user steps back into a channel they
-	// scrolled past, see autoAdvancePreviousChannel(). The two directions
-	// are independent, so the carousel goes both ways while the tab and
-	// the settings still allow it, see findAutoAdvanceTarget().
+	// Kotatogram: the chat list continues as a carousel that the user
+	// turns by scrolling. Reaching the very end of the chat that was
+	// scrolled down to opens the next chat of the current folder right
+	// away, once the bottom has been hit again, see
+	// autoAdvanceNextChannel(). Scrolling up by about a screen opens the
+	// previous chat of the folder, which is how the user steps back into
+	// a chat they scrolled past, see autoAdvancePreviousChannel(). The
+	// two directions are independent, so the carousel goes both ways while
+	// the tab and the settings still allow it, see findAutoAdvanceTarget().
+	// Nothing continues on its own: a read chat that stays still on the
+	// screen waits for the user to turn the carousel.
 	//
 	// Kotatogram: this used to be restricted to the built-in "News feed"
 	// tab and to broadcast peers. Now the continuation follows whatever
@@ -591,7 +588,6 @@ void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
 	if (!_autoAdvanceEnabled) {
 		_autoAdvanceArmed = false;
 		_autoAdvanceTopArmed = false;
-		_autoAdvanceTimer.cancel();
 		return;
 	}
 	const auto max = _scroll->scrollTopMax();
@@ -611,27 +607,9 @@ void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
 			autoAdvanceNextChannel();
 		}
 	}
-	// Kotatogram: when nothing unread is left the carousel falls back to
-	// the already-read chats, which open at their end and fit in the
-	// view sometimes, so there is no end left to scroll to there. Without
-	// this timer the feed would stall on the very first read chat for
-	// good. Let a fully read chat that stays still at its end continue
-	// the circle after a short dwell instead; any scroll away puts the
-	// user back in charge and cancels the dwell. The same one-jump-per-
-	// visit rule applies as in the unread flow above. An empty chat (its
-	// slice still loading) must not be jumped out of before it shows
-	// anything.
-	const auto readAtItsEnd = _history->loadedAtBottom()
-		&& (_history->unreadCount() == 0)
-		&& !_history->isEmpty()
-		&& ((!scrollable) || (scrollTop == max));
-	if (readAtItsEnd) {
-		if (!_autoAdvanceTimer.isActive()) {
-			_autoAdvanceTimer.callOnce(kAutoAdvanceReadChatDwellMs);
-		}
-	} else {
-		_autoAdvanceTimer.cancel();
-	}
+	// Kotatogram: there is no auto-advance here. A fully read chat left
+	// still at its end waits for the user: the carousel only moves when
+	// it is scrolled, in either direction.
 	// Top: the return to the previous channel. It fires when the user
 	// scrolls up by about a screen's worth -- the newest message of the
 	// chat leaves the viewport, which is roughly where the feed would
@@ -719,9 +697,9 @@ History *HistoryInner::findAutoAdvanceTarget(bool forward) const {
 		}
 		// Kotatogram: nothing unread is left in the whole tab, but the
 		// forward carousel must still close its circle -- without it the
-		// feed stopped dead at the bottom of the last channel. Fall back
-		// to the first chat of the tab (read or not), so the feed keeps
-		// turning; the read chats are shown with a short dwell, see
+		// feed stops dead at the bottom of the last chat. Fall back to
+		// the first chat of the tab (read or not), so the circle closes;
+		// from there the user turns it further by scrolling, see
 		// checkAutoAdvanceNextChannel().
 		return forward ? scan(0, size, 1, allowed) : nullptr;
 	}
@@ -739,10 +717,10 @@ History *HistoryInner::findAutoAdvanceTarget(bool forward) const {
 		}
 		// Kotatogram: nothing unread is left in the whole tab, but the
 		// carousel must still close its circle -- without it the feed
-		// stopped dead at the bottom of the last channel. Fall back to
-		// the chat after the current one (wrapping around), read or not,
-		// so the feed keeps turning; the read chats are shown with a
-		// short dwell, see checkAutoAdvanceNextChannel().
+		// stops dead at the bottom of the last chat. Fall back to the
+		// chat after the current one (wrapping around), read or not, so
+		// the circle closes; from there the user turns it further by
+		// scrolling, see checkAutoAdvanceNextChannel().
 		if (const auto found = scan(current + 1, size, 1, allowed)) {
 			return found;
 		}
