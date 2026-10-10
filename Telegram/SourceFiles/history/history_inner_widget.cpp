@@ -571,14 +571,14 @@ void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
 	// turns by scrolling. Reaching the very end of the chat that was
 	// scrolled down to opens the next chat of the current folder right
 	// away, once the bottom has been hit again, see
-	// autoAdvanceNextChannel(). Scrolling the chat up to its very first
-	// message opens the previous chat of the folder, which is how the
-	// user steps back into a chat they scrolled past, see
-	// autoAdvancePreviousChannel(). The two directions are independent,
-	// so the carousel goes both ways while the tab and the settings
-	// still allow it, see findAutoAdvanceTarget(). Nothing continues on
-	// its own: a read chat that stays still on the screen waits for the
-	// user to turn the carousel.
+	// autoAdvanceNextChannel(). Scrolling the chat up from its end opens
+	// the previous chat of the folder, which is how the user steps back
+	// into a chat they scrolled past, see autoAdvancePreviousChannel().
+	// The two directions are independent, so the carousel goes both ways
+	// while the tab and the settings still allow it, see
+	// findAutoAdvanceTarget(). Nothing continues on its own: a read chat
+	// that stays still on the screen waits for the user to turn the
+	// carousel.
 	//
 	// Kotatogram: this used to be restricted to the built-in "News feed"
 	// tab and to broadcast peers. Now the continuation follows whatever
@@ -611,15 +611,15 @@ void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
 	// Kotatogram: there is no auto-advance here. A fully read chat left
 	// still at its end waits for the user: the carousel only moves when
 	// it is scrolled, in either direction.
-	// Top: the return to the previous channel. It fires only when the
-	// user scrolls the chat all the way up to its very first message,
-	// so the user decides exactly when to step back. Opening a chat at
-	// its newest message lands right at the top-arm boundary, so the
-	// same one-jump-per-visit rule as at the bottom applies: a scroll
-	// away from the top arms the jump, reaching the top fires it once,
-	// and the opened previous chat is shown at its newest message.
+	// Top: the return to the previous channel. The threshold is zero now:
+	// the jump is armed while the end of the chat is in view and fires on
+	// the very first scroll up, so a plain scroll up steps back at once --
+	// no full screen and no trip to the oldest messages is needed. A chat
+	// opens at its newest message, which lands at the end, so in the
+	// normal case the first move up goes straight to the previous chat;
+	// the previous chat opens at its newest message too.
 	if (scrollable) {
-		if (scrollTop > 0) {
+		if (scrollTop >= max) {
 			_autoAdvanceTopArmed = true;
 		} else if (_autoAdvanceTopArmed) {
 			_autoAdvanceTopArmed = false;
@@ -788,13 +788,12 @@ void HistoryInner::autoAdvanceNextChannel() {
 
 void HistoryInner::autoAdvancePreviousChannel() {
 	// Kotatogram: the mirror image of autoAdvanceNextChannel(). Scrolling
-	// the chat all the way up to its very first message opens the chat
-	// that comes before the current one in the tab's list, wrapping
-	// around to the end of the list when the current chat is the first
-	// one there, and lands on its newest message. This is how the user
-	// steps back into a channel they scrolled past. The same paint,
-	// postpone and crash-safety reasons apply as in
-	// autoAdvanceNextChannel().
+	// the chat up from its end opens the chat that comes before the
+	// current one in the tab's list, wrapping around to the end of the
+	// list when the current chat is the first one there, and lands on its
+	// newest message. This is how the user steps back into a channel they
+	// scrolled past. The same paint, postpone and crash-safety reasons
+	// apply as in autoAdvanceNextChannel().
 	markReadMetricsStale();
 	repaint();
 	const auto found = findAutoAdvanceTarget(false);
@@ -806,7 +805,11 @@ void HistoryInner::autoAdvancePreviousChannel() {
 	Ui::PostponeCall(crl::guard(this, [=] {
 		auto params = Window::SectionShow(
 			Window::SectionShow::Way::ClearStack);
-		controller->showPeerHistory(target, params);
+		// Kotatogram: land on the newest message of the previous chat. The
+		// default target ("first unread") would open somewhere in the middle
+		// of a chat with unread posts, and the user asked for the last
+		// message whenever the carousel steps back.
+		controller->showPeerHistory(target, params, ShowAtTheEndMsgId);
 	}));
 }
 

@@ -530,10 +530,9 @@ private:
 	// Kotatogram: the chat list continues to the next unread chat
 	// when the user scrolls a chat to its very end. This only decides
 	// that the end was reached and arms the jump, which autoAdvanceNextChannel()
-	// then performs right away. Scrolling the chat up to its very first
-	// message opens the previous chat of the tab instead, which is how
-	// the user steps back into a chat they scrolled past, see
-	// autoAdvancePreviousChannel().
+	// then performs right away. Scrolling the chat up from its end opens
+	// the previous chat of the tab instead, which is how the user steps
+	// back into a chat they scrolled past, see autoAdvancePreviousChannel().
 	void checkAutoAdvanceNextChannel(int scrollTop);
 	void autoAdvanceNextChannel();
 	void autoAdvancePreviousChannel();

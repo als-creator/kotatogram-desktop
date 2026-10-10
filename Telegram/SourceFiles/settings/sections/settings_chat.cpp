@@ -1008,7 +1008,43 @@ void BuildChatListOptionsSection(SectionBuilder &builder) {
 		}, newsFeed->lifetime());
 	}
 
-	// Kotatogram: what the auto-advance steps through. "Every chat" and
+	// Kotatogram: the chat list turns like a carousel, but only by the
+	// user's own scrolling -- nothing moves on its own. The "News
+	// channels" tab has a switch of its own, every other tab -- "All
+	// chats", custom folders, the archive -- shares the other one. Both
+	// are off by default. The switches live here, in the main Chats
+	// section, next to the scope below.
+	const auto autoAdvanceAll = builder.addCheckbox({
+		.id = u"chat/auto-advance-all"_q,
+		.title = rktr("ktg_settings_auto_advance_all"),
+		.checked = ::Kotato::JsonSettings::GetBool("auto_advance_all"),
+		.keywords = { u"auto"_q, u"advance"_q, u"carousel"_q, u"scroll"_q },
+	});
+	if (autoAdvanceAll) {
+		autoAdvanceAll->checkedChanges(
+		) | rpl::on_next([=](bool checked) {
+			::Kotato::JsonSettings::Set("auto_advance_all", checked);
+			::Kotato::JsonSettings::Write();
+		}, autoAdvanceAll->lifetime());
+	}
+	const auto autoAdvanceNewsFeed = builder.addCheckbox({
+		.id = u"chat/auto-advance-newsfeed"_q,
+		.title = rktr("ktg_settings_auto_advance_newsfeed"),
+		.checked = ::Kotato::JsonSettings::GetBool("auto_advance_newsfeed"),
+		.keywords = {
+			u"auto"_q, u"advance"_q, u"carousel"_q, u"scroll"_q,
+			u"news"_q, u"channels"_q,
+		},
+	});
+	if (autoAdvanceNewsFeed) {
+		autoAdvanceNewsFeed->checkedChanges(
+		) | rpl::on_next([=](bool checked) {
+			::Kotato::JsonSettings::Set("auto_advance_newsfeed", checked);
+			::Kotato::JsonSettings::Write();
+		}, autoAdvanceNewsFeed->lifetime());
+	}
+
+	// Kotatogram: what the carousel steps through. "Every chat" and
 	// "broadcast channels only" are mutually exclusive, and the
 	// auto_advance_broadcast_only setting remembers which one is active.
 	// The jump itself reads the setting fresh, so changing the scope here

@@ -376,12 +376,6 @@ void SetupKotatoChats(
 	SettingsMenuJsonSwitch(ktg_settings_emoji_sidebar, emoji_sidebar);
 	SettingsMenuJsonSwitch(ktg_settings_emoji_sidebar_right_click, emoji_sidebar_right_click);
 
-	// Kotatogram: the chat list continues by itself on every tab. The
-	// "News channels" tab has a switch of its own, every other tab --
-	// "All chats", custom folders, the archive -- is guarded by this one.
-	SettingsMenuJsonSwitch(ktg_settings_auto_advance_all, auto_advance_all);
-	SettingsMenuJsonSwitch(ktg_settings_auto_advance_newsfeed, auto_advance_newsfeed);
-
 	Ui::AddSkip(container);
 	Ui::AddDivider(container);
 	Ui::AddSkip(container);

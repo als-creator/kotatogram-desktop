@@ -329,18 +329,18 @@ const std::map<QString, Definition, std::greater<QString>> DefinitionMap {
 		.type = SettingType::IntSetting,
 		.defaultValue = 0,
 		.limitHandler = IntLimitMin(0), }},
-	// Kotatogram: the chat list continues by itself on every tab. "All
-	// chats" (filter id 0), custom folders and the archive are guarded by
-	// auto_advance_all, the "News channels" tab (kNewsFeedFilterId) by
-	// auto_advance_newsfeed. The carousel for the news channels is on by
-	// default, everywhere else it is off and is turned on by the switches
-	// in Settings > Kotatogram > Chats.
+	// Kotatogram: the chat list continues as a carousel that the user
+	// turns by scrolling. "All chats" (filter id 0), custom folders and
+	// the archive are guarded by auto_advance_all, the "News channels"
+	// tab (kNewsFeedFilterId) by auto_advance_newsfeed. Both are off by
+	// default -- the carousel moves only by the user's own scrolling --
+	// and are turned on by the switches in Settings > Chats.
 	{ "auto_advance_all", {
 		.type = SettingType::BoolSetting,
 		.defaultValue = false, }},
 	{ "auto_advance_newsfeed", {
 		.type = SettingType::BoolSetting,
-		.defaultValue = true, }},
+		.defaultValue = false, }},
 	// Kotatogram: what the auto advance scrolls through, every chat of
 	// the tab or broadcast channels only. The checkboxes in Settings >
 	// Chat choose between the two, "broadcast channels only" by default.
