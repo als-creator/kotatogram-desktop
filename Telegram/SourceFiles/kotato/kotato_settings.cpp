@@ -342,10 +342,10 @@ const std::map<QString, Definition, std::greater<QString>> DefinitionMap {
 		.defaultValue = false, }},
 	// Kotatogram: what the auto advance scrolls through, every chat of
 	// the tab or broadcast channels only. The checkboxes in Settings >
-	// Kotatogram > Chats choose between the two.
+	// Chat choose between the two, "broadcast channels only" by default.
 	{ "auto_advance_broadcast_only", {
 		.type = SettingType::BoolSetting,
-		.defaultValue = false, }},
+		.defaultValue = true, }},
 	{ "folders/count_unmuted_only", {
 		.type = SettingType::BoolSetting,
 		.defaultValue = false, }},

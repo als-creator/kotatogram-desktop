@@ -52,6 +52,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/menu/menu_add_action_callback.h"
 #include "history/view/history_view_quick_action.h"
 #include "kotato/kotato_lang.h"
+#include "kotato/kotato_settings.h"
 #include "lang/lang_keys.h"
 #include "lottie/lottie_icon.h"
 #include "export/export_manager.h"
@@ -1006,6 +1007,61 @@ void BuildChatListOptionsSection(SectionBuilder &builder) {
 			controller->session().data().chatsFilters().setNewsFeedEnabled(checked);
 		}, newsFeed->lifetime());
 	}
+
+	// Kotatogram: what the auto-advance steps through. "Every chat" and
+	// "broadcast channels only" are mutually exclusive, and the
+	// auto_advance_broadcast_only setting remembers which one is active.
+	// The jump itself reads the setting fresh, so changing the scope here
+	// applies to the very next jump, no reloading is needed. It is a
+	// feed-wide scope: it answers "what to turn the carousel over" for
+	// every tab, not only for the news feed above.
+	builder.addSubsectionTitle(rktr("ktg_settings_auto_advance_scope"));
+	const auto scopeEveryChat = builder.addCheckbox({
+		.id = u"chat/auto-advance-scope-all"_q,
+		.title = rktr("ktg_settings_auto_advance_scope_all"),
+		.checked = !::Kotato::JsonSettings::GetBool(
+			"auto_advance_broadcast_only"),
+		.keywords = { u"auto"_q, u"advance"_q, u"scope"_q, u"all"_q },
+	});
+	const auto scopeBroadcastOnly = builder.addCheckbox({
+		.id = u"chat/auto-advance-scope-broadcast"_q,
+		.title = rktr("ktg_settings_auto_advance_scope_broadcast"),
+		.checked = ::Kotato::JsonSettings::GetBool(
+			"auto_advance_broadcast_only"),
+		.keywords = {
+			u"auto"_q, u"advance"_q, u"scope"_q,
+			u"broadcast"_q, u"channels"_q, u"kanal"_q,
+		},
+	});
+	if (scopeEveryChat && scopeBroadcastOnly) {
+		scopeEveryChat->checkedChanges(
+		) | rpl::filter([](bool checked) {
+			return (
+				checked
+				&& ::Kotato::JsonSettings::GetBool(
+					"auto_advance_broadcast_only"));
+		}) | rpl::on_next([scopeBroadcastOnly](bool checked) {
+			scopeBroadcastOnly->setChecked(
+				false,
+				Ui::Checkbox::NotifyAboutChange::DontNotify);
+			::Kotato::JsonSettings::Set("auto_advance_broadcast_only", false);
+			::Kotato::JsonSettings::Write();
+		}, scopeEveryChat->lifetime());
+		scopeBroadcastOnly->checkedChanges(
+		) | rpl::filter([](bool checked) {
+			return (
+				checked
+				&& !::Kotato::JsonSettings::GetBool(
+					"auto_advance_broadcast_only"));
+		}) | rpl::on_next([scopeEveryChat](bool checked) {
+			scopeEveryChat->setChecked(
+				false,
+				Ui::Checkbox::NotifyAboutChange::DontNotify);
+			::Kotato::JsonSettings::Set("auto_advance_broadcast_only", true);
+			::Kotato::JsonSettings::Write();
+		}, scopeBroadcastOnly->lifetime());
+	}
+	builder.addDividerText(rktr("ktg_settings_auto_advance_about"));
 
 	builder.addSkip(st::settingsCheckboxesSkip);
 }

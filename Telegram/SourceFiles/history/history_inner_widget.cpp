@@ -393,7 +393,8 @@ HistoryInner::HistoryInner(
 	[=] { mouseActionUpdate(QCursor::pos()); setCursor(_cursor); },
 	[=] { return window()->isActiveWindow(); })
 , _scrollDateCheck([this] { scrollDateCheck(); })
-, _scrollDateHideTimer([this] { scrollDateHideByTimer(); }) {
+, _scrollDateHideTimer([this] { scrollDateHideByTimer(); })
+, _autoAdvanceTimer([this] { autoAdvanceNextChannel(); }) {
 	_history->delegateMixin()->setCurrent(this);
 	if (_migrated) {
 		_migrated->delegateMixin()->setCurrent(this);
@@ -566,6 +567,11 @@ HistoryInner::HistoryInner(
 	setupSwipeReplyAndBack();
 }
 
+// Kotatogram: how long a fully read chat shown at its end waits before
+// the carousel continues over it. Long enough to look at the newest
+// post, short enough that the feed does not stall on read chats.
+constexpr auto kAutoAdvanceReadChatDwellMs = 2000;
+
 void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
 	// Kotatogram: the chat list continues by itself. Reaching the very end
 	// of a chat opens the next unread chat of the current folder right
@@ -585,26 +591,46 @@ void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
 	if (!_autoAdvanceEnabled) {
 		_autoAdvanceArmed = false;
 		_autoAdvanceTopArmed = false;
+		_autoAdvanceTimer.cancel();
 		return;
 	}
 	const auto max = _scroll->scrollTopMax();
-	if (max <= 0) {
-		// The content is not scrollable yet, or it already fits the
-		// view, so there is no end (and no top) to reach.
-		return;
-	}
+	const auto scrollable = (max > 0);
 	// Bottom: arm on the first move away from the end and fire only on
 	// the way back, so that opening a chat at its newest message (which
 	// lands at the bottom right away) does not walk the whole list away.
-	if (scrollTop < max) {
-		_autoAdvanceArmed = true;
-	} else if (_autoAdvanceArmed && _history->loadedAtBottom()) {
-		// One jump per arming, otherwise a chat opened at the bottom
-		// would chain into the next one and the next one. Disarming here
-		// also keeps repeated scroll events at the end from restarting the
-		// jump over and over.
-		_autoAdvanceArmed = false;
-		autoAdvanceNextChannel();
+	if (scrollable) {
+		if (scrollTop < max) {
+			_autoAdvanceArmed = true;
+		} else if (_autoAdvanceArmed && _history->loadedAtBottom()) {
+			// One jump per arming, otherwise a chat opened at the bottom
+			// would chain into the next one and the next one. Disarming here
+			// also keeps repeated scroll events at the end from restarting the
+			// jump over and over.
+			_autoAdvanceArmed = false;
+			autoAdvanceNextChannel();
+		}
+	}
+	// Kotatogram: when nothing unread is left the carousel falls back to
+	// the already-read chats, which open at their end and fit in the
+	// view sometimes, so there is no end left to scroll to there. Without
+	// this timer the feed would stall on the very first read chat for
+	// good. Let a fully read chat that stays still at its end continue
+	// the circle after a short dwell instead; any scroll away puts the
+	// user back in charge and cancels the dwell. The same one-jump-per-
+	// visit rule applies as in the unread flow above. An empty chat (its
+	// slice still loading) must not be jumped out of before it shows
+	// anything.
+	const auto readAtItsEnd = _history->loadedAtBottom()
+		&& (_history->unreadCount() == 0)
+		&& !_history->isEmpty()
+		&& ((!scrollable) || (scrollTop == max));
+	if (readAtItsEnd) {
+		if (!_autoAdvanceTimer.isActive()) {
+			_autoAdvanceTimer.callOnce(kAutoAdvanceReadChatDwellMs);
+		}
+	} else {
+		_autoAdvanceTimer.cancel();
 	}
 	// Top: the return to the previous channel. It fires when the user
 	// scrolls up by about a screen's worth -- the newest message of the
@@ -613,12 +639,14 @@ void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
 	// no departure-then-return dance is needed, but one jump per visit
 	// still applies: the return is re-armed only while the user is back
 	// within a screen of the bottom.
-	const auto boundary = std::max(max - _scroll->height(), 0);
-	if (scrollTop > boundary) {
-		_autoAdvanceTopArmed = true;
-	} else if (_autoAdvanceTopArmed) {
-		_autoAdvanceTopArmed = false;
-		autoAdvancePreviousChannel();
+	if (scrollable) {
+		const auto boundary = std::max(max - _scroll->height(), 0);
+		if (scrollTop > boundary) {
+			_autoAdvanceTopArmed = true;
+		} else if (_autoAdvanceTopArmed) {
+			_autoAdvanceTopArmed = false;
+			autoAdvancePreviousChannel();
+		}
 	}
 }
 
@@ -639,26 +667,25 @@ History *HistoryInner::findAutoAdvanceTarget(bool forward) const {
 		: _controller->session().data().chatsList(
 			_controller->openedFolder().current()));
 	const auto &rows = list->indexed()->all();
-	const auto matches = [&](const History *history) {
-		if (!history || (history == _history)) {
-			return false;
-		}
-		// Kotatogram: a chat whose slice does not reach the bottom opens
-		// on a spinner or on a half loaded view, which is what the
-		// continuation looked like when it landed on such a chat.
-		// loadedAtBottom() defaults to true, so a chat that was never
-		// opened is still a valid candidate.
-		if (_autoAdvanceBroadcastOnly && !history->peer->isBroadcast()) {
-			return false;
-		} else if (history->useTopPromotion()) {
-			return false;
-		} else if (!history->peer->computeUnavailableReason().isEmpty()) {
-			return false;
-		}
-		// Forward targets the next unread chat, backward targets the chat
-		// that the user just passed -- it may have been marked read by
-		// then, so stepping back does not wait for an unread one.
-		return forward ? (history->unreadCount() > 0) : true;
+	// Kotatogram: a candidate is any chat the auto-advance may step into:
+	// it matches the scope, is not a top promotion, is not unavailable
+	// and is not the chat being read. A chat whose slice does not reach
+	// the bottom opens on a spinner or on a half loaded view, which is
+	// what the continuation looked like when it landed on such a chat.
+	// loadedAtBottom() defaults to true, so a chat that was never opened
+	// is still a valid candidate.
+	const auto allowed = [&](const History *history) {
+		return (history != nullptr)
+			&& (history != _history)
+			&& (!_autoAdvanceBroadcastOnly || history->peer->isBroadcast())
+			&& !history->useTopPromotion()
+			&& history->peer->computeUnavailableReason().isEmpty();
+	};
+	// Forward targets the next unread chat, backward targets the chat
+	// that the user just passed -- it may have been marked read by
+	// then, so stepping back does not wait for an unread one.
+	const auto unread = [&](const History *history) {
+		return allowed(history) && (history->unreadCount() > 0);
 	};
 	const auto size = int(rows.size());
 	const auto first = rows.begin();
@@ -673,10 +700,11 @@ History *HistoryInner::findAutoAdvanceTarget(bool forward) const {
 	// in the list any more, and then there is no current position to start
 	// from, so the whole list is the range worth looking at.
 	const auto inList = (current >= 0);
-	const auto scan = [&](int begin, int end, int step) -> History * {
+	const auto scan = [&](int begin, int end, int step, const auto &match)
+		-> History * {
 		for (auto i = begin; i != end; i += step) {
 			if (const auto history = (*(first + i))->history()) {
-				if (matches(history)) {
+				if (match(history)) {
 					return history;
 				}
 			}
@@ -684,9 +712,18 @@ History *HistoryInner::findAutoAdvanceTarget(bool forward) const {
 		return nullptr;
 	};
 	if (!inList) {
-		return forward
-			? scan(0, size, 1)
-			: scan(size - 1, -1, -1);
+		if (const auto found = forward
+			? scan(0, size, 1, unread)
+			: scan(size - 1, -1, -1, allowed)) {
+			return found;
+		}
+		// Kotatogram: nothing unread is left in the whole tab, but the
+		// forward carousel must still close its circle -- without it the
+		// feed stopped dead at the bottom of the last channel. Fall back
+		// to the first chat of the tab (read or not), so the feed keeps
+		// turning; the read chats are shown with a short dwell, see
+		// checkAutoAdvanceNextChannel().
+		return forward ? scan(0, size, 1, allowed) : nullptr;
 	}
 	// Forward: scan the part of the list after the current chat, then
 	// wrap around to the part before it, so the carousel keeps turning
@@ -694,15 +731,27 @@ History *HistoryInner::findAutoAdvanceTarget(bool forward) const {
 	// Backward: the mirror image -- first the part before the current
 	// chat, then the part after it, wrapping around the same way.
 	if (forward) {
-		if (const auto found = scan(current + 1, size, 1)) {
+		if (const auto found = scan(current + 1, size, 1, unread)) {
 			return found;
 		}
-		return scan(0, current, 1);
+		if (const auto found = scan(0, current, 1, unread)) {
+			return found;
+		}
+		// Kotatogram: nothing unread is left in the whole tab, but the
+		// carousel must still close its circle -- without it the feed
+		// stopped dead at the bottom of the last channel. Fall back to
+		// the chat after the current one (wrapping around), read or not,
+		// so the feed keeps turning; the read chats are shown with a
+		// short dwell, see checkAutoAdvanceNextChannel().
+		if (const auto found = scan(current + 1, size, 1, allowed)) {
+			return found;
+		}
+		return scan(0, current, 1, allowed);
 	}
-	if (const auto found = scan(current - 1, -1, -1)) {
+	if (const auto found = scan(current - 1, -1, -1, allowed)) {
 		return found;
 	}
-	return scan(size - 1, current, -1);
+	return scan(size - 1, current, -1, allowed);
 }
 
 void HistoryInner::autoAdvanceNextChannel() {
@@ -714,9 +763,14 @@ void HistoryInner::autoAdvanceNextChannel() {
 	// The content may have grown since the end was reached, which moves
 	// the end away without emitting a scroll event. Staying where the user
 	// left them is better than yanking them into the next channel, so the
-	// bottom has to be reached again from the top before continuing.
+	// bottom has to be reached again from the top before continuing. A
+	// chat that fits the view has nothing to scroll, and the tiny window
+	// before its history is loaded is guarded separately: an empty chat
+	// must still be skipped, otherwise the carousel jumps out of it before
+	// it even shows anything.
 	const auto max = _scroll->scrollTopMax();
-	if ((max <= 0) || (_scroll->scrollTop() < max)) {
+	if ((_scroll->scrollTop() < max)
+		|| ((max <= 0) && (_history->isEmpty()))) {
 		return;
 	}
 	// Kotatogram: the read marking is computed while painting, and the

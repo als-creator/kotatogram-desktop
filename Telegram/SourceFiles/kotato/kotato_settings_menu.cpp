@@ -382,60 +382,6 @@ void SetupKotatoChats(
 	SettingsMenuJsonSwitch(ktg_settings_auto_advance_all, auto_advance_all);
 	SettingsMenuJsonSwitch(ktg_settings_auto_advance_newsfeed, auto_advance_newsfeed);
 
-	// Kotatogram: what the auto-advance steps through. "Every chat" and
-	// "broadcast channels only" are mutually exclusive, and the
-	// auto_advance_broadcast_only setting remembers which one is active.
-	// The jump itself reads the setting fresh, so changing the scope here
-	// applies to the very next jump, no reloading is needed.
-	Ui::AddSkip(container);
-	Ui::AddSubsectionTitle(container, rktr("ktg_settings_auto_advance_scope"));
-
-	const auto scopeEveryChat = container->add(
-		object_ptr<Ui::Checkbox>(
-			container,
-			rktr("ktg_settings_auto_advance_scope_all"),
-			!::Kotato::JsonSettings::GetBool("auto_advance_broadcast_only"),
-			st::settingsCheckbox),
-		st::settingsCheckboxPadding
-	);
-	const auto scopeBroadcastOnly = container->add(
-		object_ptr<Ui::Checkbox>(
-			container,
-			rktr("ktg_settings_auto_advance_scope_broadcast"),
-			::Kotato::JsonSettings::GetBool("auto_advance_broadcast_only"),
-			st::settingsCheckbox),
-		st::settingsCheckboxPadding
-	);
-	scopeEveryChat->checkedChanges(
-	) | rpl::filter([](bool checked) {
-		return (
-			checked
-			&& ::Kotato::JsonSettings::GetBool(
-				"auto_advance_broadcast_only"));
-	}) | rpl::on_next([scopeBroadcastOnly](bool checked) {
-		scopeBroadcastOnly->setChecked(
-			false,
-			Ui::Checkbox::NotifyAboutChange::DontNotify);
-		::Kotato::JsonSettings::Set("auto_advance_broadcast_only", false);
-		::Kotato::JsonSettings::Write();
-	}, container->lifetime());
-	scopeBroadcastOnly->checkedChanges(
-	) | rpl::filter([](bool checked) {
-		return (
-			checked
-			&& !::Kotato::JsonSettings::GetBool(
-				"auto_advance_broadcast_only"));
-	}) | rpl::on_next([scopeEveryChat](bool checked) {
-		scopeEveryChat->setChecked(
-			false,
-			Ui::Checkbox::NotifyAboutChange::DontNotify);
-		::Kotato::JsonSettings::Set("auto_advance_broadcast_only", true);
-		::Kotato::JsonSettings::Write();
-	}, container->lifetime());
-
-	Ui::AddSkip(container);
-	Ui::AddDividerText(container, rktr("ktg_settings_auto_advance_about"));
-
 	Ui::AddSkip(container);
 	Ui::AddDivider(container);
 	Ui::AddSkip(container);

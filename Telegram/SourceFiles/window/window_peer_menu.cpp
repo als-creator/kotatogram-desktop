@@ -125,6 +125,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_peer_values.h"
 #include "dialogs/dialogs_key.h"
 #include "core/application.h"
+#include "core/core_settings.h"
 #include "core/ui_integration.h"
 #include "export/export_manager.h"
 #include "boxes/peers/edit_participants_box.h"
@@ -346,6 +347,7 @@ private:
 	void addCreateTopic();
 	void addViewAsMessages();
 	void addViewAsTopics();
+	void addUnifiedChat();
 	void addSearchTopics();
 	void addDeleteTopic();
 	void addVideoChat();
@@ -1767,6 +1769,35 @@ void Filler::addViewAsTopics() {
 	}, &st::menuIconAsTopics);
 }
 
+void Filler::addUnifiedChat() {
+	// Kotatogram: the same toggle as in Settings > Chat > "Unified chat",
+	// so the menu checkbox of a forum mirrors it and they stay in sync.
+	// The chat starts opening as one message feed right away.
+	if (!_peer || !_peer->isForum()) {
+		return;
+	}
+	const auto checked = Core::App().settings().chatListNoNestedTopics();
+	_addAction({
+		.make = [=](not_null<Ui::PopupMenu*> popupMenu) {
+			auto item = base::make_unique_q<Menu::ItemWithCheck>(
+				popupMenu->menu(),
+				st::popupMenuWithIcons.menu,
+				Ui::CreateChild<QAction>(popupMenu->menu().get()),
+				nullptr,
+				nullptr);
+			item->action()->setText(ktr("ktg_peer_menu_unified_chat"));
+			item->init(checked);
+			item->checkView()->checkedChanges(
+			) | rpl::filter([](bool value) {
+				return value != Core::App().settings().chatListNoNestedTopics();
+			}) | rpl::on_next([](bool value) {
+				Core::App().settings().setChatListNoNestedTopics(value);
+			}, item->lifetime());
+			return item;
+		},
+	});
+}
+
 void Filler::addSearchTopics() {
 	const auto forum = _peer ? _peer->forum() : nullptr;
 	if (!forum) {
@@ -1785,6 +1816,7 @@ void Filler::fillChatsListActions() {
 	}
 	addCreateTopic();
 	addViewAsMessages();
+	addUnifiedChat();
 	const auto &all = _peer->forum()->topicsList()->indexed()->all();
 	if (all.size() > kTopicsSearchMinCount) {
 		addSearchTopics();
@@ -1858,6 +1890,7 @@ void Filler::fillHistoryActions() {
 	addCreateTopic();
 	addInfo();
 	addViewAsTopics();
+	addUnifiedChat();
 	addManageChat();
 	addStoryArchive();
 	addSupportInfo();
