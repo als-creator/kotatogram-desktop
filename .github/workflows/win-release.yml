@@ -1,27 +1,9 @@
 name: Kotatogram Windows (dev).
 
+# Manual only. The rolling dev release is kept up to date by the AppImage
+# workflow on every push to `dev`; the Windows build is started on demand with
+# "Run workflow" instead of on each push.
 on:
-  push:
-    branches:
-      - dev
-    paths-ignore:
-      - 'docs/**'
-      - '**.md'
-      - 'kotatogram_changes.txt'
-      - 'changelog.txt'
-      - 'LEGAL'
-      - 'LICENSE'
-      - '.github/**'
-      - '!.github/workflows/win-release.yml'
-      - 'lib/xdg/**'
-      - 'snap/**'
-      - 'Telegram/build/docker/**'
-      - 'Telegram/Resources/uwp/**'
-      - 'Telegram/SourceFiles/platform/linux/**'
-      - 'Telegram/SourceFiles/platform/mac/**'
-      - 'Telegram/Telegram/**'
-      - 'Telegram/configure.sh'
-      - 'Telegram/Telegram.plist'
   workflow_dispatch:
 
 jobs:

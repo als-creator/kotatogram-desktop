@@ -1,44 +1,9 @@
 name: MacOS.
 
+# Manual only. The rolling dev release is kept up to date by the AppImage
+# workflow on every push to `dev`; the macOS build is started on demand with
+# "Run workflow" instead of on each push or pull request.
 on:
-  push:
-    branches:
-      - dev
-    paths-ignore:
-      - 'docs/**'
-      - '**.md'
-      - 'kotatogram_changes.txt'
-      - 'changelog.txt'
-      - 'LEGAL'
-      - 'LICENSE'
-      - '.github/**'
-      - '!.github/workflows/mac.yml'
-      - 'lib/xdg/**'
-      - 'snap/**'
-      - 'Telegram/build/docker/**'
-      - 'Telegram/Resources/uwp/**'
-      - 'Telegram/Resources/winrc/**'
-      - 'Telegram/SourceFiles/platform/win/**'
-      - 'Telegram/SourceFiles/platform/linux/**'
-      - 'Telegram/configure.bat'
-  pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - '**.md'
-      - 'kotatogram_changes.txt'
-      - 'changelog.txt'
-      - 'LEGAL'
-      - 'LICENSE'
-      - '.github/**'
-      - '!.github/workflows/mac.yml'
-      - 'lib/xdg/**'
-      - 'snap/**'
-      - 'Telegram/build/docker/**'
-      - 'Telegram/Resources/uwp/**'
-      - 'Telegram/Resources/winrc/**'
-      - 'Telegram/SourceFiles/platform/win/**'
-      - 'Telegram/SourceFiles/platform/linux/**'
-      - 'Telegram/configure.bat'
   workflow_dispatch:
 
 jobs:
