@@ -530,9 +530,9 @@ private:
 	// Kotatogram: the chat list continues to the next unread chat
 	// when the user scrolls a chat to its very end. This only decides
 	// that the end was reached and arms the jump, which autoAdvanceNextChannel()
-	// then performs right away. Reaching the very top opens the previous
-	// chat of the tab instead, which is how the user steps back into a
-	// channel they scrolled past, see autoAdvancePreviousChannel().
+	// then performs right away. Scrolling up by about a screen opens the
+	// previous chat of the tab instead, which is how the user steps back
+	// into a channel they scrolled past, see autoAdvancePreviousChannel().
 	void checkAutoAdvanceNextChannel(int scrollTop);
 	void autoAdvanceNextChannel();
 	void autoAdvancePreviousChannel();
@@ -559,9 +559,10 @@ private:
 
 	int _accessibilityFocusedIndex = -1;
 	bool _autoAdvanceArmed = false;
-	// Kotatogram: the mirror image of _autoAdvanceArmed, armed when the
-	// user scrolls away from the very top of the chat and fired when they
-	// come back to it, jumping to the previous channel of the tab.
+	// Kotatogram: armed while the user is within about a screen of the
+	// chat's bottom and fired when they scroll up past it, jumping to the
+	// previous channel of the tab. Independent from _autoAdvanceArmed, so
+	// the carousel can go both ways.
 	bool _autoAdvanceTopArmed = false;
 	// Kotatogram: a cached copy of "whether the current tab continues
 	// by itself". It is checked on every scroll value change, and reading

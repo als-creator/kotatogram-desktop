@@ -570,11 +570,11 @@ void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
 	// Kotatogram: the chat list continues by itself. Reaching the very end
 	// of a chat opens the next unread chat of the current folder right
 	// away, there is no dwell to wait out, see autoAdvanceNextChannel().
-	// Reaching the very top opens the previous chat of the folder, which
-	// is how the user steps back into a channel they scrolled past, see
-	// autoAdvancePreviousChannel(). The two directions are independent, so
-	// the carousel goes both ways while the tab and the settings still
-	// allow it, see findAutoAdvanceTarget().
+	// Scrolling up by about a screen opens the previous chat of the
+	// folder, which is how the user steps back into a channel they
+	// scrolled past, see autoAdvancePreviousChannel(). The two directions
+	// are independent, so the carousel goes both ways while the tab and
+	// the settings still allow it, see findAutoAdvanceTarget().
 	//
 	// Kotatogram: this used to be restricted to the built-in "News feed"
 	// tab and to broadcast peers. Now the continuation follows whatever
@@ -606,14 +606,17 @@ void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
 		_autoAdvanceArmed = false;
 		autoAdvanceNextChannel();
 	}
-	// Top: the mirror image of the bottom. A chat is never opened at its
-	// top, so reaching the top is always a deliberate scroll, and arming
-	// on the first move away from it is enough. This is what pulls the
-	// user back to the previous channel after they scrolled past a
-	// message.
-	if (scrollTop > 0) {
+	// Top: the return to the previous channel. It fires when the user
+	// scrolls up by about a screen's worth -- the newest message of the
+	// chat leaves the viewport, which is roughly where the feed would
+	// continue into the previous channel. That is a deliberate scroll, so
+	// no departure-then-return dance is needed, but one jump per visit
+	// still applies: the return is re-armed only while the user is back
+	// within a screen of the bottom.
+	const auto boundary = std::max(max - _scroll->height(), 0);
+	if (scrollTop > boundary) {
 		_autoAdvanceTopArmed = true;
-	} else if (_autoAdvanceTopArmed && _history->loadedAtTop()) {
+	} else if (_autoAdvanceTopArmed) {
 		_autoAdvanceTopArmed = false;
 		autoAdvancePreviousChannel();
 	}
@@ -752,15 +755,13 @@ void HistoryInner::autoAdvanceNextChannel() {
 }
 
 void HistoryInner::autoAdvancePreviousChannel() {
-	// Kotatogram: the mirror image of autoAdvanceNextChannel(). Reaching
-	// the very top of a chat opens the chat that comes before it in the
-	// tab's list, wrapping around to the end of the list when the current
-	// chat is the first one there. This is how the user steps back into a
-	// channel after scrolling past a message. The same paint, postpone and
-	// crash-safety reasons apply as in autoAdvanceNextChannel().
-	if (!_history->loadedAtTop() || (_scroll->scrollTop() > 0)) {
-		return;
-	}
+	// Kotatogram: the mirror image of autoAdvanceNextChannel(). Scrolling
+	// up by about a screen opens the chat that comes before the current
+	// one in the tab's list, wrapping around to the end of the list when
+	// the current chat is the first one there, and lands on its newest
+	// message. This is how the user steps back into a channel they
+	// scrolled past. The same paint, postpone and crash-safety reasons
+	// apply as in autoAdvanceNextChannel().
 	markReadMetricsStale();
 	repaint();
 	const auto found = findAutoAdvanceTarget(false);
