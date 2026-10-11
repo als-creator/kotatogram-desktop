@@ -343,6 +343,14 @@ protected:
 
 public:
 	void synteticScrollToY(int y);
+	// Kotatogram: true while the list is scrolled by the app itself and not
+	// by the user. The auto-advance carousel uses it to ignore the scroll a
+	// layout change performs -- opening a chat at its newest message, or the
+	// reply panel changing the height of the list and pulling it back to the
+	// end -- and turn only on the user's own scrolling.
+	[[nodiscard]] bool synteticScroll() const {
+		return _synteticScrollEvent;
+	}
 
 private:
 	using TabbedPanel = ChatHelpers::TabbedPanel;

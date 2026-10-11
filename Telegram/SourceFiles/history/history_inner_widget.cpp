@@ -591,21 +591,34 @@ void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
 		_autoAdvanceTopArmed = false;
 		return;
 	}
+	// Kotatogram: the list is scrolled by the app itself as well -- a chat
+	// is opened at its newest message, and the panel above the input, like
+	// the reply panel, changes the height of the list and the list is pulled
+	// back to the end. Those scrolls must not turn the carousel, otherwise
+	// the chat the user is reading is left for the next one while they are
+	// writing a reply. HistoryWidget reports them through synteticScroll(),
+	// so only the user's own scrolling is taken into account.
+	const auto byUser = !_widget->synteticScroll();
 	const auto max = _scroll->scrollTopMax();
 	const auto scrollable = (max > 0);
-	// Bottom: arm on the first move away from the end and fire only on
-	// the way back, so that opening a chat at its newest message (which
-	// lands at the bottom right away) does not walk the whole list away.
+	// Bottom: arm on a real move away from the end and fire on a real move
+	// back, so that opening a chat at its newest message (which lands at the
+	// bottom right away) does not walk the whole list away, and neither does
+	// the list laying itself out while a reply panel appears.
 	if (scrollable) {
-		if (scrollTop < max) {
+		if (byUser && scrollTop < max) {
 			_autoAdvanceArmed = true;
-		} else if (_autoAdvanceArmed && _history->loadedAtBottom()) {
+		} else if (byUser && _autoAdvanceArmed && _history->loadedAtBottom()) {
 			// One jump per arming, otherwise a chat opened at the bottom
 			// would chain into the next one and the next one. Disarming here
 			// also keeps repeated scroll events at the end from restarting the
 			// jump over and over.
 			_autoAdvanceArmed = false;
 			autoAdvanceNextChannel();
+		} else if (!byUser && scrollTop >= max) {
+			// The app itself pulled the list to the end after a layout
+			// change, so there is nothing the user armed on the way back.
+			_autoAdvanceArmed = false;
 		}
 	}
 	// Kotatogram: there is no auto-advance here. A fully read chat left
@@ -613,18 +626,20 @@ void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
 	// it is scrolled, in either direction.
 	// Top: the return to the previous channel. The threshold is zero now:
 	// the jump is armed while the end of the chat is in view and fires on
-	// the very first scroll up, so a plain scroll up steps back at once --
-	// no full screen and no trip to the oldest messages is needed. A chat
-	// opens at its newest message, which lands at the end, so in the
-	// normal case the first move up goes straight to the previous chat;
-	// the previous chat opens at its newest message too.
+	// the very first real scroll up, so a plain scroll up steps back at once
+	// -- no full screen and no trip to the oldest messages is needed. A chat
+	// opens at its newest message, which lands at the end, so in the normal
+	// case the first move up goes straight to the previous chat; the previous
+	// chat opens at its newest message too. As at the bottom, only a real
+	// scroll may fire it; the "end is in view" state is tracked for every
+	// scroll, including the programmatic one that opens a chat at its end.
 	if (scrollable) {
-		if (scrollTop >= max) {
-			_autoAdvanceTopArmed = true;
-		} else if (_autoAdvanceTopArmed) {
+		if (byUser && _autoAdvanceTopArmed && scrollTop < max) {
 			_autoAdvanceTopArmed = false;
+			_autoAdvanceArmed = false;
 			autoAdvancePreviousChannel();
 		}
+		_autoAdvanceTopArmed = (scrollTop >= max);
 	}
 }
 
