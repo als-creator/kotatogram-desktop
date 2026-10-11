@@ -3888,8 +3888,14 @@ void ApiWrap::forwardMessagesUnquoted(
 
 		switch (draft.groupOptions) {
 			case Data::GroupingOptions::GroupAsIs:
+				// Kotatogram: the old unquoted method (forced by
+				// "forward_force_old_unquoted") must group forwarded
+				// media exactly like the standard server method does.
+				// That method starts a new request only when the source
+				// chat or the source album changes, so media that had no
+				// album in the source (groupedId == 0) still go into one
+				// album instead of arriving as separate posts.
 				return forwardFrom != item->history()->peer
-						|| !currentGroupId
 						|| currentGroupId != item->groupId()
 						|| lastGroupCheck
 						|| messageGroupCount >= 10;
