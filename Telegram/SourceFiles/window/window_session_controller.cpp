@@ -2239,6 +2239,17 @@ void SessionController::showForum(
 	const auto forced = params.forceTopicsList;
 	if (showForumInDifferentWindow(forum, params, showAtMsgId)) {
 		return;
+	} else if (!forced && Core::App().settings().chatListNoNestedTopics()) {
+		// Kotatogram-changed: the "unified chat" option opens a forum as
+		// one message feed, also when it is reached through a link or a
+		// new window, and not only through the chats list row whose
+		// handler already goes to showForumAsMessages(). The topic list
+		// is still shown when it is forced explicitly (the forum search).
+		if (!forum->peer()->viewForumAsMessages()) {
+			forum->peer()->owner().saveViewAsMessages(forum, true);
+		}
+		showPeerHistory(forum->peer(), params, showAtMsgId);
+		return;
 	} else if (!forced && forum->peer()->useSubsectionTabs()) {
 		const auto active = (showAtMsgId == ShowAtUnreadMsgId)
 			? forum->activeSubsectionThread()

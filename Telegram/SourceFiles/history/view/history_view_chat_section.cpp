@@ -3197,12 +3197,14 @@ void ChatWidget::listMarkReadTill(not_null<HistoryItem*> item) {
 		_replies->readTill(item);
 	} else if (_sublist) {
 		_sublist->readTill(item);
-	} else if (_history->isForum()
-		&& Core::App().settings().chatListNoNestedTopics()) {
-		// Kotatogram-changed: in the unified view of a forum a message is
-		// read together with its topic, so the topic read position, the
-		// unread counter of the chat and the topic list all follow what
-		// has been scrolled into the viewport.
+	} else if (_history->isForum()) {
+		// Kotatogram-changed: a forum read as one message feed -- the
+		// "unified chat" option, the "View as messages" chat menu or the
+		// topics tabs layout -- reads every message together with its
+		// topic. The topic read position, the unread counter of the chat
+		// and the topic list all follow what has been scrolled into the
+		// viewport, so a chat opened one way reads the same counters as
+		// one opened any other way.
 		if (const auto topic = item->topic()) {
 			if (const auto replies = topic->replies()) {
 				replies->readTill(item);
