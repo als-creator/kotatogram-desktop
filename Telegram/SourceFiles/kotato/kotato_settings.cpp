@@ -347,6 +347,13 @@ const std::map<QString, Definition, std::greater<QString>> DefinitionMap {
 	{ "auto_advance_broadcast_only", {
 		.type = SettingType::BoolSetting,
 		.defaultValue = true, }},
+	// Kotatogram: how long an edge of a chat has to be held still before
+	// the carousel steps over it, in whole seconds. Zero means "switch
+	// right away".
+	{ "auto_advance_delay", {
+		.type = SettingType::IntSetting,
+		.defaultValue = 3,
+		.limitHandler = IntLimit(0, 30, 3), }},
 	{ "folders/count_unmuted_only", {
 		.type = SettingType::BoolSetting,
 		.defaultValue = false, }},

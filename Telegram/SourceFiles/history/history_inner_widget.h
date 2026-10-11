@@ -527,15 +527,21 @@ private:
 
 	void setupSharingDisallowed();
 	void setupSwipeReplyAndBack();
-	// Kotatogram: the chat list continues to the next unread chat
-	// when the user scrolls a chat to its very end. This only decides
-	// that the end was reached and arms the jump, which autoAdvanceNextChannel()
-	// then performs right away. Scrolling the chat up from its end opens
-	// the previous chat of the tab instead, which is how the user steps
-	// back into a chat they scrolled past, see autoAdvancePreviousChannel().
+	// Kotatogram: the chat list turns like a carousel, but only by the
+	// user's own scrolling -- nothing continues on its own. Reaching the
+	// very end of a chat arms the forward jump, reaching its very first
+	// message arms the backward one, and both fire only after the edge has
+	// been held still for autoAdvanceDelay(), see autoAdvanceByTimer(). A
+	// quick flick never turns the carousel, so it cannot skip through chat
+	// after chat. Scrolling past either edge opens the next or the previous
+	// chat of the tab, see autoAdvanceNextChannel() and
+	// autoAdvancePreviousChannel().
 	void checkAutoAdvanceNextChannel(int scrollTop);
+	void armAutoAdvance(bool top);
+	void autoAdvanceByTimer();
 	void autoAdvanceNextChannel();
 	void autoAdvancePreviousChannel();
+	[[nodiscard]] crl::time autoAdvanceDelay() const;
 	// Kotatogram: finds the next chat of the tab's list the auto-advance
 	// should open (or the previous one with forward == false), following
 	// the current tab, the settings and the "broadcast channels only"
@@ -558,12 +564,19 @@ private:
 	bool hasPendingResizedItems() const;
 
 	int _accessibilityFocusedIndex = -1;
+	// Kotatogram: the user has scrolled away from the very end of the chat
+	// at least once, so that returning to the end may arm the forward jump.
+	// A chat that opens at its newest message must not walk the list away
+	// on its own, so only a real departure-then-return counts.
 	bool _autoAdvanceArmed = false;
-	// Kotatogram: armed while the user is within about a screen of the
-	// chat's bottom and fired when they scroll up past it, jumping to the
-	// previous channel of the tab. Independent from _autoAdvanceArmed, so
+	// Kotatogram: the user reached the very first message of the chat,
+	// which arms the backward jump. Independent from _autoAdvanceArmed, so
 	// the carousel can go both ways.
 	bool _autoAdvanceTopArmed = false;
+	// Kotatogram: the direction of the pending jump. It is kept apart from
+	// the armed flags so that the dwell timer knows which way to step when
+	// it expires.
+	bool _autoAdvancePendingTop = false;
 	// Kotatogram: a cached copy of "whether the current tab continues
 	// by itself". It is checked on every scroll value change, and reading
 	// the settings hash there means hashing a string on every scroll
@@ -703,6 +716,9 @@ private:
 	Ui::Animations::Simple _scrollDateOpacity;
 	SingleQueuedInvokation _scrollDateCheck;
 	base::Timer _scrollDateHideTimer;
+	// Kotatogram: the dwell of the chat carousel, see
+	// checkAutoAdvanceNextChannel().
+	base::Timer _autoAdvanceTimer;
 	Element *_scrollDateLastItem = nullptr;
 	int _scrollDateLastItemTop = 0;
 	bool _scrollDateAfterDayCrossing = false;
