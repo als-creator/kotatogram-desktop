@@ -85,6 +85,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history_widget.h"
 #include "history/view/history_view_translate_tracker.h"
 #include "history/view/history_view_read_metrics_tracker.h"
+#include "base/event_filter.h"
 #include "base/platform/base_platform_info.h"
 #include "base/qt/qt_common_adapters.h"
 #include "base/qt/qt_key_modifiers.h"
@@ -492,6 +493,18 @@ HistoryInner::HistoryInner(
 	) | rpl::on_next([=](int scrollTop) {
 		checkAutoAdvanceNextChannel(scrollTop);
 	}, lifetime());
+	// Kotatogram: the wheel turning further at an edge must reach the
+	// auto-advance too. Reaching the very end by scrolling fires the arm
+	// while the value still changes, but a chat that opens at its newest
+	// message already sits at the end: the scroll value stays put and no
+	// scroll event follows, so the wheel down there would never turn the
+	// carousel. Watch the wheel itself for those events.
+	base::install_event_filter(_scroll, [=](not_null<QEvent*> e) {
+		if (e->type() == QEvent::Wheel) {
+			checkAutoAdvanceWheel(static_cast<QWheelEvent*>(e.get()));
+		}
+		return base::EventFilterResult::Continue;
+	}, lifetime());
 	session().data().itemRemoved(
 	) | rpl::on_next(
 		[this](auto item) { itemRemoved(item); },
@@ -648,6 +661,48 @@ void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
 		_autoAdvanceTopArmed = false;
 		_autoAdvancePendingTop = false;
 		_autoAdvanceTimer.cancel();
+	}
+}
+
+void HistoryInner::checkAutoAdvanceWheel(not_null<QWheelEvent*> event) {
+	// Kotatogram: the wheel asked to scroll further past an edge, where the
+	// scroll area itself cannot move any more. That arms the same jumps the
+	// reaching of an edge arms: wheel down right at the very end forwards to
+	// the next chat, wheel up at the very first message steps back to the
+	// previous one. Anything else is left to the scroll area untouched.
+	// Every further wheel event at the edge restarts the wait, so even a
+	// slow continuous turn needs autoAdvanceDelay() of stillness before the
+	// carousel moves, the same as with scroll events.
+	if (!_autoAdvanceEnabled) {
+		_autoAdvanceArmed = false;
+		_autoAdvanceTopArmed = false;
+		_autoAdvancePendingTop = false;
+		_autoAdvanceTimer.cancel();
+		return;
+	}
+	const auto delta = Ui::ScrollDelta(event);
+	if (std::abs(delta.x()) > std::abs(delta.y())) {
+		return;
+	}
+	const auto max = _scroll->scrollTopMax();
+	if (max <= 0) {
+		return;
+	}
+	if (delta.y() < 0 && _scroll->scrollTop() >= max) {
+		// Wheel down right at the very end, where the list cannot scroll
+		// further: this is the user asking for the next chat. Unlike the
+		// scroll path this does not wait for a departure from the end
+		// first: a chat that opens at its newest message already sits at
+		// the end and the wheel down there means "keep reading".
+		if (_history->loadedAtBottom()) {
+			armAutoAdvance(false);
+		}
+	} else if (delta.y() > 0 && _scroll->scrollTop() <= 0) {
+		// Wheel up right at the very first message: the way back into the
+		// previous chat.
+		if (!_history->isEmpty()) {
+			armAutoAdvance(true);
+		}
 	}
 }
 

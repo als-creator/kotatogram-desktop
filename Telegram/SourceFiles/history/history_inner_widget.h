@@ -25,6 +25,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include <QtGui/QPainterPath>
 
+class QWheelEvent;
+
 struct ClickContext;
 struct ClickHandlerContext;
 
@@ -537,6 +539,7 @@ private:
 	// chat of the tab, see autoAdvanceNextChannel() and
 	// autoAdvancePreviousChannel().
 	void checkAutoAdvanceNextChannel(int scrollTop);
+	void checkAutoAdvanceWheel(not_null<QWheelEvent*> event);
 	void armAutoAdvance(bool top);
 	void autoAdvanceByTimer();
 	void autoAdvanceNextChannel();
