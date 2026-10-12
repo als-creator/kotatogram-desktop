@@ -38,7 +38,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/color_editor.h"
 #include "ui/widgets/continuous_sliders.h"
 #include "ui/widgets/labels.h"
-#include "ui/widgets/simple_labels.h"
+
 #include "ui/chat/attach/attach_extensions.h"
 #include "ui/chat/chat_style.h"
 #include "ui/chat/chat_theme.h"
