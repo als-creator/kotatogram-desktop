@@ -36,7 +36,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/checkbox.h"
 #include "ui/widgets/color_editor.h"
+#include "ui/widgets/continuous_sliders.h"
 #include "ui/widgets/labels.h"
+#include "ui/widgets/simple_labels.h"
 #include "ui/chat/attach/attach_extensions.h"
 #include "ui/chat/chat_style.h"
 #include "ui/chat/chat_theme.h"
@@ -91,6 +93,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_window.h"
 #include "styles/style_dialogs.h"
 
+#include <algorithm>
 #include <QAction>
 
 namespace Settings {
@@ -1098,6 +1101,51 @@ void BuildChatListOptionsSection(SectionBuilder &builder) {
 		}, scopeBroadcastOnly->lifetime());
 	}
 	builder.addDividerText(rktr("ktg_settings_auto_advance_about"));
+
+	// Kotatogram: how long an edge of a chat has to be held still before the
+	// carousel steps over it, in whole seconds. 0 means "step at once"
+	// (the flick guard still applies).
+	{
+		constexpr int kAutoAdvanceMaxDelaySeconds = 30;
+		const auto container = builder.container();
+		const auto title = container->add(
+			object_ptr<Ui::SettingsButton>(
+				container,
+				rktr("ktg_settings_auto_advance_delay"),
+				st::settingsButtonNoIcon));
+		title->setAttribute(Qt::WA_TransparentForMouseEvents);
+		const auto label = container->add(
+			object_ptr<Ui::LabelSimple>(
+				container,
+				st::ktgSettingsSliderLabel),
+			st::groupCallDelayLabelMargin);
+		const auto slider = container->add(
+			object_ptr<Ui::MediaSlider>(
+				container,
+				st::defaultContinuousSlider),
+			st::localStorageLimitMargin);
+		slider->resize(st::defaultContinuousSlider.seekSize);
+		const auto format = [](int seconds) {
+			return tr::lng_seconds_tiny(tr::now, lt_count, seconds);
+		};
+		const auto current = std::clamp(
+			::Kotato::JsonSettings::GetInt("auto_advance_delay"),
+			0,
+			kAutoAdvanceMaxDelaySeconds);
+		slider->setPseudoDiscrete(
+			kAutoAdvanceMaxDelaySeconds + 1,
+			[](int index) { return index; },
+			current,
+			[=](int value) {
+				label->setText(format(value));
+			},
+			[=](int value) {
+				label->setText(format(value));
+				::Kotato::JsonSettings::Set("auto_advance_delay", value);
+				::Kotato::JsonSettings::Write();
+			});
+		label->setText(format(current));
+	}
 
 	builder.addSkip(st::settingsCheckboxesSkip);
 }
