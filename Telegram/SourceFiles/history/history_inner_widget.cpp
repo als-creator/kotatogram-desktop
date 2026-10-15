@@ -684,20 +684,21 @@ void HistoryInner::checkAutoAdvanceWheel(not_null<QWheelEvent*> event) {
 	if (std::abs(delta.x()) > std::abs(delta.y())) {
 		return;
 	}
-	// No max <= 0 bail here: a chat that fits the view has no scroll
-	// positions, and the scroll path leaves it alone for that reason, but
-	// an explicit wheel still has to move out of it -- otherwise a short
-	// chat traps the carousel with no way forward and no way back. With
-	// nothing to scroll both edges coincide, so the delta's sign alone
-	// decides the direction.
+	// A chat that fits the view has no scroll positions, and the scroll
+	// path leaves it alone for that reason, but an explicit wheel still has
+	// to move out of it -- otherwise a short chat traps the carousel with
+	// no way forward and no way back. With nothing to scroll both edges
+	// coincide, so the delta's sign alone decides the direction: there is
+	// nowhere to depart to, so the departure cannot be asked for there.
 	const auto max = _scroll->scrollTopMax();
+	const auto shortChat = (max <= 0);
 	if (delta.y() < 0 && _scroll->scrollTop() >= max) {
 		// Wheel down right at the very end, where the list cannot scroll
-		// further: this is the user asking for the next chat. Unlike the
-		// scroll path this does not wait for a departure from the end
-		// first: a chat that opens at its newest message already sits at
-		// the end and the wheel down there means "keep reading".
-		if (_history->loadedAtBottom()) {
+		// further: this is the user asking for the next chat. On a long
+		// chat the wheel waits for a departure from the end first, exactly
+		// like the scroll path, so a leftover turn of the wheel cannot
+		// leave the chat the carousel has just landed on.
+		if (_history->loadedAtBottom() && (shortChat || _autoAdvanceArmed)) {
 			armAutoAdvance(false);
 		}
 	} else if (delta.y() > 0 && _scroll->scrollTop() <= 0) {
