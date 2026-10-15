@@ -684,10 +684,13 @@ void HistoryInner::checkAutoAdvanceWheel(not_null<QWheelEvent*> event) {
 	if (std::abs(delta.x()) > std::abs(delta.y())) {
 		return;
 	}
+	// No max <= 0 bail here: a chat that fits the view has no scroll
+	// positions, and the scroll path leaves it alone for that reason, but
+	// an explicit wheel still has to move out of it -- otherwise a short
+	// chat traps the carousel with no way forward and no way back. With
+	// nothing to scroll both edges coincide, so the delta's sign alone
+	// decides the direction.
 	const auto max = _scroll->scrollTopMax();
-	if (max <= 0) {
-		return;
-	}
 	if (delta.y() < 0 && _scroll->scrollTop() >= max) {
 		// Wheel down right at the very end, where the list cannot scroll
 		// further: this is the user asking for the next chat. Unlike the
