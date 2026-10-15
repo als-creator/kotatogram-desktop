@@ -350,12 +350,12 @@ const std::map<QString, Definition, std::greater<QString>> DefinitionMap {
 		.type = SettingType::BoolSetting,
 		.defaultValue = true, }},
 	// Kotatogram: how long an edge of a chat has to be held still before
-	// the carousel steps over it, in whole seconds. Zero means "switch
-	// right away".
-	{ "auto_advance_delay", {
+	// the carousel steps over it, in milliseconds, so a fraction of a
+	// second can be picked as well. Zero means "switch right away".
+	{ "auto_advance_delay_ms", {
 		.type = SettingType::IntSetting,
-		.defaultValue = 3,
-		.limitHandler = IntLimit(0, 30, 3), }},
+		.defaultValue = 3000,
+		.limitHandler = IntLimit(0, 30000, 3000), }},
 	{ "folders/count_unmuted_only", {
 		.type = SettingType::BoolSetting,
 		.defaultValue = false, }},
@@ -889,6 +889,23 @@ bool Manager::readCustomFile() {
 
 		if (!val.isUndefined()) {
 			prepareAccountOptions(newkey, defIterator->second, val, setValue);
+		}
+	}
+
+	// Kotatogram: the auto-advance delay used to be written down in whole
+	// seconds. It is kept in milliseconds now, so tenths of a second can
+	// be picked too. Carry a value left by the older version over to the
+	// new key, so an upgrade does not throw the chosen wait away.
+	const auto legacyDelayKey = qsl("auto_advance_delay");
+	const auto delayKey = qsl("auto_advance_delay_ms");
+	if (!settings.contains(delayKey)) {
+		const auto legacyDelay = settings.value(legacyDelayKey);
+		if (legacyDelay.isDouble()) {
+			const auto seconds = qBound(
+				0,
+				qFloor(legacyDelay.toDouble()),
+				30);
+			set(delayKey, seconds * 1000);
 		}
 	}
 

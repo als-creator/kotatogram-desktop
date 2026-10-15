@@ -737,13 +737,14 @@ void HistoryInner::autoAdvanceByTimer() {
 }
 
 crl::time HistoryInner::autoAdvanceDelay() const {
-	// Kotatogram: the wait is a setting in whole seconds, so there is a
+	// Kotatogram: the wait is a setting in milliseconds, so both a whole
+	// second and a fraction of it can be picked, while there is still a
 	// real chance to read the last (or first) message of a chat before the
 	// list moves on. Zero means "switch right away". The default and the
 	// limits live in Kotato::JsonSettings, so a hand edited settings file
 	// is clamped the same way the UI would clamp it.
 	return crl::time(::Kotato::JsonSettings::GetInt(
-		"auto_advance_delay")) * 1000;
+		"auto_advance_delay_ms"));
 }
 
 History *HistoryInner::findAutoAdvanceTarget(bool forward) const {

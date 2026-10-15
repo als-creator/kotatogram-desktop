@@ -1105,10 +1105,11 @@ void BuildChatListOptionsSection(SectionBuilder &builder) {
 	builder.addDividerText(rktr("ktg_settings_auto_advance_about"));
 
 	// Kotatogram: how long an edge of a chat has to be held still before the
-	// carousel steps over it, in whole seconds. 0 means "step at once"
-	// (the flick guard still applies).
+	// carousel steps over it, in milliseconds, so a fraction of a second can
+	// be picked too. 0 means "step at once" (the flick guard still applies).
 	{
-		constexpr int kAutoAdvanceMaxDelaySeconds = 30;
+		constexpr int kAutoAdvanceMaxDelayMs = 30000;
+		constexpr int kAutoAdvanceDelayStepMs = 100;
 		const auto container = builder.container();
 		const auto title = container->add(
 			object_ptr<Ui::SettingsButton>(
@@ -1127,23 +1128,34 @@ void BuildChatListOptionsSection(SectionBuilder &builder) {
 				st::defaultContinuousSlider),
 			st::localStorageLimitMargin);
 		slider->resize(st::defaultContinuousSlider.seekSize);
-		const auto format = [](int seconds) {
-			return tr::lng_seconds_tiny(tr::now, lt_count, seconds);
+		// Kotatogram: the label is built from the core delay strings: the
+		// Kotatogram language packs have no English fallback, so a fresh
+		// key here would read blank on every language not updated at once.
+		const auto format = [](int ms) {
+			return (ms < 1000)
+				? tr::lng_group_call_ptt_delay_ms(
+					tr::now,
+					lt_amount,
+					QString::number(ms))
+				: tr::lng_group_call_ptt_delay_s(
+					tr::now,
+					lt_amount,
+					QString::number(ms / 1000., 'f', 1));
 		};
 		const auto current = std::clamp(
-			::Kotato::JsonSettings::GetInt("auto_advance_delay"),
+			::Kotato::JsonSettings::GetInt("auto_advance_delay_ms"),
 			0,
-			kAutoAdvanceMaxDelaySeconds);
+			kAutoAdvanceMaxDelayMs);
 		slider->setPseudoDiscrete(
-			kAutoAdvanceMaxDelaySeconds + 1,
-			[](int index) { return index; },
+			kAutoAdvanceMaxDelayMs / kAutoAdvanceDelayStepMs + 1,
+			[](int index) { return index * kAutoAdvanceDelayStepMs; },
 			current,
 			[=](int value) {
 				label->setText(format(value));
 			},
 			[=](int value) {
 				label->setText(format(value));
-				::Kotato::JsonSettings::Set("auto_advance_delay", value);
+				::Kotato::JsonSettings::Set("auto_advance_delay_ms", value);
 				::Kotato::JsonSettings::Write();
 			});
 		label->setText(format(current));
