@@ -838,13 +838,20 @@ void DraftOptionsBox(
 		const auto weak = base::make_weak(box);
 		auto forward = Data::ForwardDraft();
 		if (options) {
-			forward.options = NormalizeForwardOptions(
+			const auto normalized = NormalizeForwardOptions(
 				&show->session(),
 				state->forward.items,
 				*options);
+			forward.options = normalized;
 			for (const auto &item : state->forward.items) {
 				forward.ids.push_back(item->fullId());
 			}
+			// «Объединить медиа» возможно только без автора, иначе
+			// группировка возвращается к «как в оригинале».
+			forward.groupOptions =
+				(normalized == Data::ForwardOptions::PreserveInfo)
+				? Data::GroupingOptions::GroupAsIs
+				: state->forward.groupOptions;
 		}
 		done(std::move(result), std::move(webpage), std::move(forward));
 		if (const auto strong = weak.get()) {

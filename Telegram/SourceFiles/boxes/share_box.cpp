@@ -359,10 +359,18 @@ void ShareBox::prepare() {
 		}
 	}();
 
+	// «Объединить медиа» пересылается нашими сообщениями без автора,
+	// поэтому с сохранением автора группировка смысла не имеет.
+	const auto initialOptions =
+		(groupOptions == Data::GroupingOptions::RegroupAll
+			&& forwardOptions == Data::ForwardOptions::PreserveInfo)
+		? Data::ForwardOptions::NoSenderNames
+		: forwardOptions;
+
 	_forwardOptions.sendersCount = _descriptor.forwardOptions.sendersCount;
 	_forwardOptions.captionsCount = _descriptor.forwardOptions.captionsCount;
-	_forwardOptions.dropNames = (forwardOptions != Data::ForwardOptions::PreserveInfo);
-	_forwardOptions.dropCaptions = (forwardOptions == Data::ForwardOptions::NoNamesAndCaptions);
+	_forwardOptions.dropNames = (initialOptions != Data::ForwardOptions::PreserveInfo);
+	_forwardOptions.dropCaptions = (initialOptions == Data::ForwardOptions::NoNamesAndCaptions);
 	_groupOptions = groupOptions;
 
 	updateAdditionalTitle();
@@ -844,6 +852,12 @@ bool ShareBox::showForwardMenu(not_null<Ui::IconButton*> button) {
 					::Kotato::JsonSettings::Set("forward_grouping_mode", mode);
 					::Kotato::JsonSettings::Write();
 				}
+				if (_groupOptions == Data::GroupingOptions::RegroupAll
+					&& !_forwardOptions.dropNames) {
+					// «Объединить медиа» пересылается без автора, иначе
+					// настройка не даёт никакого эффекта.
+					onForwardOptionChange(1, true);
+				}
 				updateAdditionalTitle();
 			}
 		};
@@ -861,6 +875,15 @@ bool ShareBox::showForwardMenu(not_null<Ui::IconButton*> button) {
 		groupNone->checkedChanges(
 		) | rpl::on_next([=](bool value) {
 			onGroupOptionChange(2, value);
+		}, _topMenu->lifetime());
+
+		// «Объединить медиа» невозможно вместе с сохранением автора, поэтому
+		// при возврате автора группировка переключается на «как в оригинале».
+		quoted->checkedChanges(
+		) | rpl::on_next([=, this](bool value) {
+			if (value && _groupOptions == Data::GroupingOptions::RegroupAll) {
+				onGroupOptionChange(0, value);
+			}
 		}, _topMenu->lifetime());
 	}
 

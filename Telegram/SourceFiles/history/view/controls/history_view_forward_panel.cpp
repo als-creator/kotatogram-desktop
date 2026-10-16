@@ -58,7 +58,8 @@ void ForwardPanel::update(
 		Data::ResolvedForwardDraft draft) {
 	if (_to == to
 		&& _data.items == draft.items
-		&& _data.options == draft.options) {
+		&& _data.options == draft.options
+		&& _data.groupOptions == draft.groupOptions) {
 		return;
 	}
 	_dataLifetime.destroy();
@@ -240,13 +241,20 @@ void ForwardPanel::applyOptions(Data::ForwardOptions options) {
 		return;
 	}
 	options = NormalizeForwardOptions(&_to->session(), _data.items, options);
-	if (_data.options != options) {
+	// «Объединить медиа» можно только пересылкой без автора, поэтому при
+	// сохранении автора группировка возвращается к «как в оригинале».
+	const auto grouping = (options == Data::ForwardOptions::PreserveInfo)
+		? Data::GroupingOptions::GroupAsIs
+		: _data.groupOptions;
+	if (_data.options != options || _data.groupOptions != grouping) {
 		const auto topicRootId = _to->topicRootId();
 		const auto monoforumPeerId = _to->monoforumPeerId();
 		_data.options = options;
+		_data.groupOptions = grouping;
 		_to->owningHistory()->setForwardDraft(topicRootId, monoforumPeerId, {
 			.ids = _to->owner().itemsToIds(_data.items),
 			.options = options,
+			.groupOptions = grouping,
 		});
 		_repaint();
 	}

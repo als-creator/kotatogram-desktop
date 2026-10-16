@@ -3528,9 +3528,11 @@ void ApiWrap::forwardMessages(
 		Data::ResolvedForwardDraft &&draft,
 		SendAction action,
 		FnMut<void()> &&successCallback) {
-	if (draft.options != Data::ForwardOptions::PreserveInfo
-		&& (draft.groupOptions == Data::GroupingOptions::RegroupAll
-			|| ::Kotato::JsonSettings::GetBool("forward_force_old_unquoted"))) {
+	if (draft.groupOptions == Data::GroupingOptions::RegroupAll
+		|| (draft.options != Data::ForwardOptions::PreserveInfo
+			&& ::Kotato::JsonSettings::GetBool("forward_force_old_unquoted"))) {
+		// «Объединить медиа» переписывает медиа нашими сообщениями, поэтому
+		// серверный метод (сохраняющий исходные альбомы) для него не годится.
 		forwardMessagesUnquoted(std::move(draft), action, std::move(successCallback));
 		return;
 	}
