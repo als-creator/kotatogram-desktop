@@ -614,7 +614,7 @@ void EditFilterBox(
 
 	const auto defaultFilterId = window->session().account().defaultFilterId();
 	const auto isCurrent = filter.id() == defaultFilterId;
-	content->add(
+	const auto checkboxDefault = content->add(
 		object_ptr<Ui::Checkbox>(
 			box,
 			ktr("ktg_filters_default"),
@@ -866,6 +866,7 @@ void EditFilterBox(
 		const auto staticTitle = !title.entities.isEmpty()
 			&& state->staticTitle.current();
 		const auto rules = data->current();
+		const auto checked = checkboxDefault && checkboxDefault->checked();
 		if (Ui::ComputeFieldCharacterCount(name) > kMaxFilterTitleLength
 			|| title.empty()) {
 			name->showError();
@@ -886,7 +887,7 @@ void EditFilterBox(
 			: std::make_optional(rawColorIndex));
 		return rules.withTitle(
 			{ std::move(title), staticTitle }
-		).withColorIndex(colorIndex);
+		).withColorIndex(colorIndex).withDefault(checked);
 	};
 
 	Ui::AddSubsectionTitle(

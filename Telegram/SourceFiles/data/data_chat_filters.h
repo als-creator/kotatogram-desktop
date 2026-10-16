@@ -96,6 +96,10 @@ public:
 	[[nodiscard]] ChatFilter withId(FilterId id) const;
 	[[nodiscard]] ChatFilter withTitle(ChatFilterTitle title) const;
 	[[nodiscard]] ChatFilter withColorIndex(std::optional<uint8>) const;
+	// Kotatogram: the "default folder" checkbox in the editor is the only
+	// place where this flag is changed by hand, so it has to be settable
+	// separately from the flag the filter was loaded with.
+	[[nodiscard]] ChatFilter withDefault(bool isDefault) const;
 	[[nodiscard]] ChatFilter withChatlist(
 		bool chatlist,
 		bool hasMyLinks) const;

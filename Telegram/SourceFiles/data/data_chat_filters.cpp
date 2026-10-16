@@ -492,6 +492,12 @@ ChatFilter ChatFilter::withColorIndex(std::optional<uint8> c) const {
 	return result;
 }
 
+ChatFilter ChatFilter::withDefault(bool isDefault) const {
+	auto result = *this;
+	result._isDefault = isDefault;
+	return result;
+}
+
 ChatFilter ChatFilter::withChatlist(bool chatlist, bool hasMyLinks) const {
 	auto result = *this;
 	result._flags &= Flag::RulesMask;
@@ -1402,17 +1408,13 @@ FilterId ChatFilters::defaultId() const {
 FilterId ChatFilters::primaryId() const {
 	// Kotatogram: the main tab may be any tab, including the news feed tab
 	// with its reserved negative id, so the check is "is in the list" and
-	// not "is greater than zero". A stored 0 means "not set": rather than
-	// the first folder, the news feed is the default main tab (it is the
-	// tab the app opens on out of the box), falling back to the first tab
-	// only while the news feed is hidden or missing.
+	// not "is greater than zero". A stored 0 means "not set" and the chat
+	// list opens on "All chats" then, the first tab of the list.
 	const auto id = FilterId(_owner->session().account().defaultFilterId());
 	if (id && ranges::contains(_list, id, &ChatFilter::id)) {
 		return id;
 	}
-	return ranges::contains(_list, kNewsFeedFilterId, &ChatFilter::id)
-		? kNewsFeedFilterId
-		: lookupId(0);
+	return lookupId(0);
 }
 
 void ChatFilters::setPrimaryId(FilterId id) {

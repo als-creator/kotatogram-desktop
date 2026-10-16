@@ -332,11 +332,11 @@ const std::map<QString, Definition, std::greater<QString>> DefinitionMap {
 	// Kotatogram: the chat list continues as a carousel that the user
 	// turns by scrolling. "All chats" (filter id 0), custom folders and
 	// the archive are guarded by auto_advance_all, the "News channels"
-	// tab (kNewsFeedFilterId) by auto_advance_newsfeed. The news feed is
-	// the main tab from the start, so its carousel is on by default; "All
-	// chats", custom folders and the archive are off by default -- the
-	// carousel moves only by the user's own scrolling -- and are turned
-	// on by the switches in Settings > Chats.
+	// tab (kNewsFeedFilterId) by auto_advance_newsfeed. The news feed
+	// carousel is on by default, "All chats", custom folders and the
+	// archive are off by default -- the carousel moves only by the user's
+	// own scrolling -- and are turned on by the switches in
+	// Settings > Chats.
 	{ "auto_advance_all", {
 		.type = SettingType::BoolSetting,
 		.defaultValue = false, }},
