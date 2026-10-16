@@ -394,8 +394,7 @@ HistoryInner::HistoryInner(
 	[=] { mouseActionUpdate(QCursor::pos()); setCursor(_cursor); },
 	[=] { return window()->isActiveWindow(); })
 , _scrollDateCheck([this] { scrollDateCheck(); })
-, _scrollDateHideTimer([this] { scrollDateHideByTimer(); })
-, _autoAdvanceTimer([this] { autoAdvanceByTimer(); }) {
+, _scrollDateHideTimer([this] { scrollDateHideByTimer(); }) {
 	_history->delegateMixin()->setCurrent(this);
 	if (_migrated) {
 		_migrated->delegateMixin()->setCurrent(this);
@@ -473,12 +472,9 @@ HistoryInner::HistoryInner(
 			? ::Kotato::JsonSettings::GetBool("auto_advance_newsfeed")
 			: ::Kotato::JsonSettings::GetBool("auto_advance_all");
 		if (!_autoAdvanceEnabled) {
-			// Turning it off must not leave a pending jump behind that
+			// Turning it off must not leave counted rolls behind that
 			// would move the list while the user is reading.
-			_autoAdvanceArmed = false;
-			_autoAdvanceTopArmed = false;
-			_autoAdvancePendingTop = false;
-			_autoAdvanceTimer.cancel();
+			resetAutoAdvanceTicks();
 		}
 	};
 	rpl::merge(
@@ -491,7 +487,7 @@ HistoryInner::HistoryInner(
 	refreshAutoAdvance();
 	_scroll->scrollTopValue(
 	) | rpl::on_next([=](int scrollTop) {
-		checkAutoAdvanceNextChannel(scrollTop);
+		checkAutoAdvanceScroll(scrollTop);
 	}, lifetime());
 	// Kotatogram: the wheel turning further at an edge must reach the
 	// auto-advance too. Reaching the very end by scrolling fires the arm
@@ -588,163 +584,105 @@ HistoryInner::HistoryInner(
 	setupSwipeReplyAndBack();
 }
 
-void HistoryInner::checkAutoAdvanceNextChannel(int scrollTop) {
+void HistoryInner::checkAutoAdvanceScroll(int scrollTop) {
 	// Kotatogram: the chat list turns like a carousel, but only by the
-	// user's own scrolling -- nothing continues on its own. The forward
-	// jump is armed by leaving the very end of a chat and fires once the
-	// user is back at that end and holds still for autoAdvanceDelay(); the
-	// backward jump is armed by reaching the very first message and fires
-	// after the same wait, see autoAdvanceByTimer(). Both land on the
-	// newest message of the target chat, see autoAdvanceNextChannel() and
-	// autoAdvancePreviousChannel(). Because a jump waits the delay out, a
-	// quick flick of the wheel cannot skip through chat after chat, and the
-	// first scroll only arms -- it never turns the carousel on its own. The
-	// two directions are independent, so the carousel goes both ways while
-	// the tab and the settings still allow it, see findAutoAdvanceTarget().
+	// user's own wheel, see checkAutoAdvanceWheel(). Reaching an edge of a
+	// chat by scrolling alone never moves the list on, so the last (or
+	// first) message stays readable for as long as the user wants and no
+	// timer runs behind their back. All this function does is drop the
+	// counted rolls once the edge is left.
 	//
-	// Kotatogram: this used to be restricted to the built-in "News feed"
-	// tab and to broadcast peers. Now the continuation follows whatever
-	// tab is open -- "All chats", custom folders and the archive share
-	// the "All chats" setting, the "News channels" tab has its own -- and
-	// the filter is taken from the controller. Whether broadcast channels
-	// only are stepped through is decided by the auto-advance scope.
-	if (!_autoAdvanceEnabled) {
-		_autoAdvanceArmed = false;
-		_autoAdvanceTopArmed = false;
-		_autoAdvancePendingTop = false;
-		_autoAdvanceTimer.cancel();
-		return;
-	}
+	// Kotatogram: the continuation follows whatever tab is open -- "All
+	// chats", custom folders and the archive share the "All chats" setting,
+	// the "News channels" tab has its own -- and the filter is taken from
+	// the controller. Whether broadcast channels only are stepped through
+	// is decided by the auto-advance scope, see findAutoAdvanceTarget().
+	//
 	// Kotatogram: the list is scrolled by the app itself as well -- a chat
 	// is opened at its newest message, and the panel above the input, like
 	// the reply panel, changes the height of the list and the list is pulled
-	// back to the end. Those scrolls must not arm or fire the carousel,
+	// back to the end. Those scrolls must not count towards the carousel,
 	// otherwise the chat the user is reading is left for the next one while
 	// they are writing a reply. HistoryWidget reports them through
 	// synteticScroll(), so only the user's own scrolling counts.
-	const auto byUser = !_widget->synteticScroll();
-	if (!byUser) {
-		_autoAdvanceArmed = false;
-		_autoAdvanceTopArmed = false;
-		_autoAdvancePendingTop = false;
-		_autoAdvanceTimer.cancel();
+	if (!_autoAdvanceEnabled || _widget->synteticScroll()) {
+		resetAutoAdvanceTicks();
 		return;
 	}
 	const auto max = _scroll->scrollTopMax();
 	if (max <= 0) {
-		// Kotatogram: a chat that fits the view has no scroll positions to
-		// watch, so there is no edge to hold at. It is left alone instead
-		// of being stepped over by a timer, which would move the list on
-		// while the user is still reading a short chat.
+		// Kotatogram: a chat that fits the view has no edge that scrolling
+		// could leave, so there is nothing to reset here; the wheel rolls
+		// over its end are counted by checkAutoAdvanceWheel() on their own.
 		return;
 	}
-	if (scrollTop >= max) {
-		// Kotatogram: back at the very end. Fire the forward jump only
-		// after the user has actually left the end before, so that a chat
-		// opened at its newest message does not walk the list away on its
-		// own.
-		if (_autoAdvanceArmed && _history->loadedAtBottom()) {
-			armAutoAdvance(false);
-		}
-	} else if (scrollTop <= 0) {
-		// Kotatogram: the very first message of the chat is reached, so the
-		// way back into the previous chat is open. Waiting the delay out at
-		// the edge is what turns the carousel, never the first scroll.
-		if (!_history->isEmpty()) {
-			armAutoAdvance(true);
-		}
-	} else {
-		// Kotatogram: the user is in the middle of the chat, reading.
-		// Remember that the end was left and drop whatever was pending, so
-		// a jump cannot move the list under them.
-		_autoAdvanceArmed = true;
-		_autoAdvanceTopArmed = false;
-		_autoAdvancePendingTop = false;
-		_autoAdvanceTimer.cancel();
+	if (scrollTop < max) {
+		_autoAdvanceForwardTicks = 0;
+	}
+	if (scrollTop > 0) {
+		_autoAdvanceBackwardTicks = 0;
 	}
 }
 
 void HistoryInner::checkAutoAdvanceWheel(not_null<QWheelEvent*> event) {
 	// Kotatogram: the wheel asked to scroll further past an edge, where the
-	// scroll area itself cannot move any more. That arms the same jumps the
-	// reaching of an edge arms: wheel down right at the very end forwards to
-	// the next chat, wheel up at the very first message steps back to the
-	// previous one. Anything else is left to the scroll area untouched.
-	// Every further wheel event at the edge restarts the wait, so even a
-	// slow continuous turn needs autoAdvanceDelay() of stillness before the
-	// carousel moves, the same as with scroll events.
+	// scroll area itself cannot move any more. That is what turns the
+	// carousel: wheel down right at the very end forwards to the next chat,
+	// wheel up at the very first message steps back to the previous one.
+	// Anything else is left to the scroll area untouched. Reaching an edge
+	// is not enough on its own: the first roll there only counts, and the
+	// next one in a row steps over, so the last (or first) message stays
+	// readable and a single stray roll never moves the list. No timer is
+	// involved -- the jump happens on the roll itself, right away.
 	if (!_autoAdvanceEnabled) {
-		_autoAdvanceArmed = false;
-		_autoAdvanceTopArmed = false;
-		_autoAdvancePendingTop = false;
-		_autoAdvanceTimer.cancel();
+		resetAutoAdvanceTicks();
 		return;
 	}
 	const auto delta = Ui::ScrollDelta(event);
-	if (std::abs(delta.x()) > std::abs(delta.y())) {
+	if (std::abs(delta.x()) > std::abs(delta.y()) || delta.y() == 0) {
 		return;
 	}
 	// A chat that fits the view has no scroll positions, and the scroll
 	// path leaves it alone for that reason, but an explicit wheel still has
 	// to move out of it -- otherwise a short chat traps the carousel with
 	// no way forward and no way back. With nothing to scroll both edges
-	// coincide, so the delta's sign alone decides the direction: there is
-	// nowhere to depart to, so the departure cannot be asked for there.
+	// coincide, so the delta's sign alone decides the direction.
 	const auto max = _scroll->scrollTopMax();
-	const auto shortChat = (max <= 0);
-	if (delta.y() < 0 && _scroll->scrollTop() >= max) {
-		// Wheel down right at the very end, where the list cannot scroll
-		// further: this is the user asking for the next chat. On a long
-		// chat the wheel waits for a departure from the end first, exactly
-		// like the scroll path, so a leftover turn of the wheel cannot
-		// leave the chat the carousel has just landed on.
-		if (_history->loadedAtBottom() && (shortChat || _autoAdvanceArmed)) {
-			armAutoAdvance(false);
+	if (delta.y() < 0) {
+		// Wheel down. Only a roll the scroll area cannot follow -- one made
+		// at the very end of the chat -- counts towards the forward jump. A
+		// chat that fits the view has no end to scroll to, so being at its
+		// bottom is enough. An empty chat is left alone, otherwise the
+		// carousel jumps out of it before it shows anything.
+		_autoAdvanceBackwardTicks = 0;
+		const auto atEnd = (max > 0)
+			? (_scroll->scrollTop() >= max)
+			: (!_history->isEmpty() && _history->loadedAtBottom());
+		if (!atEnd) {
+			_autoAdvanceForwardTicks = 0;
+			return;
 		}
-	} else if (delta.y() > 0 && _scroll->scrollTop() <= 0) {
-		// Wheel up right at the very first message: the way back into the
-		// previous chat.
-		if (!_history->isEmpty()) {
-			armAutoAdvance(true);
+		if (++_autoAdvanceForwardTicks >= kAutoAdvanceTicks) {
+			_autoAdvanceForwardTicks = 0;
+			autoAdvanceNextChannel();
 		}
-	}
-}
-
-void HistoryInner::armAutoAdvance(bool top) {
-	// Kotatogram: an edge of the chat has been reached. Every further event
-	// at that edge restarts the wait, so the jump happens only once the user
-	// stops turning the wheel and holds still for autoAdvanceDelay().
-	_autoAdvanceArmed = false;
-	_autoAdvanceTopArmed = top;
-	_autoAdvancePendingTop = top;
-	_autoAdvanceTimer.cancel();
-	_autoAdvanceTimer.callOnce(autoAdvanceDelay());
-}
-
-void HistoryInner::autoAdvanceByTimer() {
-	// Kotatogram: the edge was held still long enough, so step over it in
-	// the direction that was armed. The pending state is cleared first: the
-	// jump rebuilds this very widget, and a stale flag must not fire again.
-	const auto top = _autoAdvancePendingTop;
-	_autoAdvancePendingTop = false;
-	_autoAdvanceArmed = false;
-	_autoAdvanceTopArmed = false;
-	if (top) {
-		autoAdvancePreviousChannel();
 	} else {
-		autoAdvanceNextChannel();
+		// Wheel up at the very first message: the mirror image.
+		_autoAdvanceForwardTicks = 0;
+		if (_history->isEmpty() || _scroll->scrollTop() > 0) {
+			_autoAdvanceBackwardTicks = 0;
+			return;
+		}
+		if (++_autoAdvanceBackwardTicks >= kAutoAdvanceTicks) {
+			_autoAdvanceBackwardTicks = 0;
+			autoAdvancePreviousChannel();
+		}
 	}
 }
 
-crl::time HistoryInner::autoAdvanceDelay() const {
-	// Kotatogram: the wait is a setting in milliseconds, so both a whole
-	// second and a fraction of it can be picked, while there is still a
-	// real chance to read the last (or first) message of a chat before the
-	// list moves on. Zero means "switch right away". The default and the
-	// limits live in Kotato::JsonSettings, so a hand edited settings file
-	// is clamped the same way the UI would clamp it.
-	return crl::time(::Kotato::JsonSettings::GetInt(
-		"auto_advance_delay_ms"));
+void HistoryInner::resetAutoAdvanceTicks() {
+	_autoAdvanceForwardTicks = 0;
+	_autoAdvanceBackwardTicks = 0;
 }
 
 History *HistoryInner::findAutoAdvanceTarget(bool forward) const {
@@ -819,7 +757,7 @@ History *HistoryInner::findAutoAdvanceTarget(bool forward) const {
 		// feed stops dead at the bottom of the last chat. Fall back to
 		// the first chat of the tab (read or not), so the circle closes;
 		// from there the user turns it further by scrolling, see
-		// checkAutoAdvanceNextChannel().
+		// checkAutoAdvanceWheel().
 		return forward ? scan(0, size, 1, allowed) : nullptr;
 	}
 	// Forward: scan the part of the list after the current chat, then
@@ -839,7 +777,7 @@ History *HistoryInner::findAutoAdvanceTarget(bool forward) const {
 		// stops dead at the bottom of the last chat. Fall back to the
 		// chat after the current one (wrapping around), read or not, so
 		// the circle closes; from there the user turns it further by
-		// scrolling, see checkAutoAdvanceNextChannel().
+		// scrolling, see checkAutoAdvanceWheel().
 		if (const auto found = scan(current + 1, size, 1, allowed)) {
 			return found;
 		}
