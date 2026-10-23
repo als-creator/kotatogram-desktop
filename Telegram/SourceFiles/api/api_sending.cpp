@@ -278,11 +278,6 @@ void SendExistingMedia(
 				MTP_long(starsPaid),
 				SuggestToMTP(action.options.suggest)
 			), [=](const MTPUpdates &result, const MTP::Response &response) {
-			// The forwarding counter must be released here as well,
-			// otherwise the forward box never closes even on success.
-			if (doneCallback) {
-				doneCallback();
-			}
 		}, [=](const MTP::Error &error, const MTP::Response &response) {
 			if (error.code() == 400
 				&& error.type().startsWith(u"FILE_REFERENCE_"_q)) {
@@ -292,16 +287,10 @@ void SendExistingMedia(
 						repeatRequest(repeatRequest);
 					} else {
 						api->sendMessageFail(error, peer, randomId, newId);
-						if (doneCallback) {
-							doneCallback();
-						}
 					}
 				});
 			} else {
 				api->sendMessageFail(error, peer, randomId, newId);
-				if (doneCallback) {
-					doneCallback();
-				}
 			}
 		});
 	};
@@ -536,18 +525,9 @@ bool SendDice(
 			MTP_long(starsPaid),
 			SuggestToMTP(action.options.suggest)
 		), [=](const MTPUpdates &result, const MTP::Response &response) {
-			// Forwarding relies on this callback to release the counter.
-			if (doneCallback) {
-				doneCallback(result, response.requestId);
-			}
-		}, [=](const MTP::Error &error, const MTP::Response &response) {
-			api->sendMessageFail(error, peer, randomId, newId);
-			// Release the forwarding counter on failure too, otherwise a
-			// failed dice forward never closes the box.
-			if (doneCallback) {
-				doneCallback(MTPUpdates(), response.requestId);
-			}
-		});
+	}, [=](const MTP::Error &error, const MTP::Response &response) {
+		api->sendMessageFail(error, peer, randomId, newId);
+	});
 	if (!forwarding) {
 		api->finishForwarding(action);
 	}

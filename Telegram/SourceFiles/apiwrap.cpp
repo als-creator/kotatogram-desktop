@@ -3724,11 +3724,6 @@ void ApiWrap::forwardMessages(
 				} else {
 					_session->api().sendMessageFail(error, peer);
 				}
-				// Release the counter on failure as well, so the box
-				// closes even when the server rejects the forward.
-				if (shared && !--shared->requestsLeft) {
-					shared->callback();
-				}
 			});
 
 		ids.resize(0);
@@ -3888,14 +3883,8 @@ void ApiWrap::forwardMessagesUnquoted(
 
 		switch (draft.groupOptions) {
 			case Data::GroupingOptions::GroupAsIs:
-				// Kotatogram: the old unquoted method (forced by
-				// "forward_force_old_unquoted") must group forwarded
-				// media exactly like the standard server method does.
-				// That method starts a new request only when the source
-				// chat or the source album changes, so media that had no
-				// album in the source (groupedId == 0) still go into one
-				// album instead of arriving as separate posts.
 				return forwardFrom != item->history()->peer
+						|| !currentGroupId
 						|| currentGroupId != item->groupId()
 						|| lastGroupCheck
 						|| messageGroupCount >= 10;
@@ -3928,9 +3917,9 @@ void ApiWrap::forwardMessagesUnquoted(
 		auto currentIds = QVector<MTPint>();
 		currentIds.push_back(MTP_int(item->id));
 
-		const auto currentRandomId = randomIds.takeFirst();
+		auto currentRandomId = MTP_long(randomIds.takeFirst());
 		auto currentRandomIds = QVector<MTPlong>();
-		currentRandomIds.push_back(MTP_long(currentRandomId));
+		currentRandomIds.push_back(currentRandomId);
 
 		const auto starsPaid = std::min(
 			action.options.starsApproved,
@@ -3967,12 +3956,7 @@ void ApiWrap::forwardMessagesUnquoted(
 				}
 				finish();
 			}).fail([=](const MTP::Error &error) {
-				sendMessageFail(error, peer, currentRandomId);
-				// Release the counter on failure too, otherwise the box
-				// stays open forever.
-				if (shared && !--shared->requestsLeft) {
-					shared->callback();
-				}
+				sendMessageFail(error, peer);
 				finish();
 			}).afterRequest(
 				history->sendRequestId
@@ -3989,7 +3973,6 @@ void ApiWrap::forwardMessagesUnquoted(
 		const auto medias = std::make_shared<QVector<Data::Media*>>();
 		const auto mediaInputs = std::make_shared<QVector<MTPInputSingleMedia>>();
 		const auto mediaRefs = std::make_shared<QVector<QByteArray>>();
-		const auto localIds = std::make_shared<base::flat_map<uint64, FullMsgId>>();
 		mediaInputs->reserve(ids.size());
 		mediaRefs->reserve(ids.size());
 
@@ -4035,7 +4018,6 @@ void ApiWrap::forwardMessagesUnquoted(
 				sentEntities));
 
 			_session->data().registerMessageRandomId(randomId, newId);
-			localIds->emplace(randomId, newId);
 
 			if (const auto photo = media->photo()) {
 				history->addNewLocalMessage({
@@ -4109,58 +4091,42 @@ void ApiWrap::forwardMessagesUnquoted(
 					}
 					finish();
 				}).fail([=](const MTP::Error &error) {
-					const auto failAlbum = [=] {
-						for (const auto &[randomId, itemId] : *localIds) {
-							sendMessageFail(error, peer, randomId, itemId);
-						}
-						if (shared && !--shared->requestsLeft) {
-							shared->callback();
-						}
-					};
 					if (error.code() == 400
 						&& error.type().startsWith(qstr("FILE_REFERENCE_"))) {
-						// The last refresh result decides whether all the
-						// references were updated and the album can be sent
-						// again. The state is shared to be usable from the
-						// asynchronous refresh handlers.
-						struct RefreshState {
-							int left = 0;
-							bool updated = false;
-						};
-						const auto refreshState = std::make_shared<RefreshState>();
-						refreshState->left = int(mediaRefs->size());
+						auto refreshRequests = mediaRefs->size();
 						auto index = 0;
+						auto wasUpdated = false;
 						for (auto i = medias->begin(), e = medias->end(); i != e; i++) {
 							const auto media = *i;
 							const auto origin = media->document()
 									? media->document()->stickerOrGifOrigin()
 									: Data::FileOrigin();
 							const auto usedFileReference = mediaRefs->value(index);
-
-							refreshFileReference(origin, [=, state = refreshState](const auto &result) {
+							
+							refreshFileReference(origin, [=, &refreshRequests, &wasUpdated](const auto &result) {
 								const auto currentMediaReference = media->photo()
 									? media->photo()->fileReference()
 									: media->document()->fileReference();
 
 								if (currentMediaReference != usedFileReference) {
-									state->updated = true;
+									wasUpdated = true;
 								}
 
-								if (state->left > 1) {
-									--state->left;
+								if (refreshRequests > 0) {
+									refreshRequests--;
 									return;
 								}
 
-								if (state->updated) {
+								if (wasUpdated) {
 									repeatRequest(repeatRequest);
 								} else {
-									failAlbum();
+									sendMessageFail(error, peer);
 								}
 							});
 							index++;
 						}
 					} else {
-						failAlbum();
+						sendMessageFail(error, peer);
 					}
 					finish();
 				}).afterRequest(
@@ -4191,7 +4157,7 @@ void ApiWrap::forwardMessagesUnquoted(
 		};
 		message.action.clearDraft = false;
 
-		auto finishMedia = [=] () {
+		auto doneCallback = [=] () {
 			if (shared && !--shared->requestsLeft) {
 				shared->callback();
 			}
@@ -4202,36 +4168,35 @@ void ApiWrap::forwardMessagesUnquoted(
 			_polls->create(poll,
 				caption,
 				message.action,
-				finishMedia,
-				[=](bool) { finishMedia(); });
+				std::move(doneCallback),
+				nullptr);
 		} else if (media->geoPoint()) {
 			const auto location = *(media->geoPoint());
 			Api::SendLocationPoint(
 				location,
 				message.action,
-				finishMedia,
-				[=](const MTP::Error &) { finishMedia(); });
+				std::move(doneCallback),
+				nullptr);
 		} else if (media->sharedContact()) {
 			const auto contact = media->sharedContact();
 			shareContact(
 				contact->phoneNumber,
 				contact->firstName,
 				contact->lastName,
-				message.action,
-				[=](bool) { finishMedia(); });
+				message.action);
 		} else if (media->photo()) {
 			Api::SendExistingPhoto(
 				std::move(message),
 				media->photo(),
 				std::nullopt,
-				finishMedia,
+				std::move(doneCallback),
 				true); // forwarding
 		} else if (media->document()) {
 			Api::SendExistingDocument(
 				std::move(message),
 				media->document(),
 				std::nullopt,
-				finishMedia,
+				std::move(doneCallback),
 				true); // forwarding
 		} else {
 			Unexpected("Media type in ApiWrap::forwardMessages.");
@@ -4277,19 +4242,10 @@ void ApiWrap::forwardMessagesUnquoted(
 		message.action.clearDraft = false;
 		message.webPage = webpage;
 
-		// Long texts are sent in parts and long/failed sends may trigger
-		// the callback multiple times (or never). Guard so the counter is
-		// released exactly once per forwarded message.
-		const auto finished = std::make_shared<bool>(false);
-
 		session().api().sendMessage(
 			std::move(message),
 			std::nullopt,
 			[=] (const MTPUpdates &result, mtpRequestId requestId) {
-				if (*finished) {
-					return;
-				}
-				*finished = true;
 				if (shared && !--shared->requestsLeft) {
 					shared->callback();
 				}
@@ -4816,15 +4772,8 @@ void ApiWrap::sendMessage(
 		? replyTo->topicRootId()
 		: Data::ForumTopic::kGeneralId;
 	const auto topic = peer->forumTopicFor(topicRootId);
-	if (!(topic ? Data::CanSendTexts(topic) : Data::CanSendTexts(peer))) {
-		// Release the forwarding counter (guarded one-shot in the caller)
-		// so the box never stays open when sending is not allowed.
-		if (doneCallback) {
-			doneCallback(MTPUpdates(), 0);
-		}
-		return;
-	}
-	if (Api::SendDice(message, [=] (const MTPUpdates &result, mtpRequestId requestId) {
+	if (!(topic ? Data::CanSendTexts(topic) : Data::CanSendTexts(peer))
+		|| Api::SendDice(message, [=] (const MTPUpdates &result, mtpRequestId requestId) {
 			if (doneCallback) {
 				doneCallback(result, requestId);
 			}
@@ -5011,11 +4960,6 @@ void ApiWrap::sendMessage(
 					draftTopicRootId,
 					draftMonoforumPeerId,
 					Api::UnixtimeFromMsgId(response.outerMsgId));
-			}
-			// Forwarding wraps the callback with a one-shot guard, release
-			// it on failure too so the box never stays open.
-			if (doneCallback) {
-				doneCallback(MTPUpdates(), response.requestId);
 			}
 		};
 		const auto mtpShortcut = Data::ShortcutIdToMTP(
