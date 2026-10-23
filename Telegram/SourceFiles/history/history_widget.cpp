@@ -8370,24 +8370,14 @@ void HistoryWidget::contextMenuEvent(QContextMenuEvent *e) {
 							controller()->showToast(error.text);
 							return;
 						}
-						// «Объединить медиа» пересылается без автора, поэтому
-						// при сохранении автора группировка возвращается к
-						// «как в оригинале».
-						const auto grouping =
-							(newOptions == Options::PreserveInfo)
-							? GroupingOptions::GroupAsIs
-							: draft.groupOptions;
 						_history->setForwardDraft(MsgId(), PeerId(), {
 							.ids = session().data().itemsToIds(_forwardPanel->items()),
 							.options = newOptions,
-							.groupOptions = grouping,
+							.groupOptions = draft.groupOptions,
 						});
-						updateForwarding();
+						updateField();
 						if (::Kotato::JsonSettings::GetBool("forward_remember_mode")) {
 							::Kotato::JsonSettings::Set("forward_mode", settingsKey);
-							::Kotato::JsonSettings::Set(
-								"forward_grouping_mode",
-								int(grouping));
 							::Kotato::JsonSettings::Write();
 						}
 					});
@@ -8410,25 +8400,14 @@ void HistoryWidget::contextMenuEvent(QContextMenuEvent *e) {
 					const auto draft = _history->resolveForwardDraft(MsgId(), PeerId());
 					if (_history && draft.groupOptions != newOptions) {
 						_menu->addAction(ktr(langKey), [=] {
-							// «Объединить медиа» пересылается нашими
-							// сообщениями без автора, поэтому режим
-							// переключается на пересылку без автора.
-							const auto options =
-								(newOptions == GroupingOptions::RegroupAll
-									&& draft.options == Options::PreserveInfo)
-								? Options::NoSenderNames
-								: draft.options;
 							_history->setForwardDraft(MsgId(), PeerId(), {
 								.ids = session().data().itemsToIds(_forwardPanel->items()),
-								.options = options,
+								.options = draft.options,
 								.groupOptions = newOptions,
 							});
-							updateForwarding();
+							updateField();
 							if (::Kotato::JsonSettings::GetBool("forward_remember_mode")) {
 								::Kotato::JsonSettings::Set("forward_grouping_mode", settingsKey);
-								if (options != draft.options) {
-									::Kotato::JsonSettings::Set("forward_mode", 1);
-								}
 								::Kotato::JsonSettings::Write();
 							}
 						});
