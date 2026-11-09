@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "api/api_sending.h"
 
 #include "api/api_text_entities.h"
+#include "kotato/kotato_settings.h"
 #include "base/random.h"
 #include "base/unixtime.h"
 #include "data/business/data_shortcut_messages.h"
