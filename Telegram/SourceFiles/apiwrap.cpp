@@ -3528,12 +3528,6 @@ void ApiWrap::forwardMessages(
 		Data::ResolvedForwardDraft &&draft,
 		SendAction action,
 		FnMut<void()> &&successCallback) {
-	if (draft.options != Data::ForwardOptions::PreserveInfo
-		&& (draft.groupOptions == Data::GroupingOptions::RegroupAll
-			|| ::Kotato::JsonSettings::GetBool("forward_force_old_unquoted"))) {
-		forwardMessagesUnquoted(std::move(draft), action, std::move(successCallback));
-		return;
-	}
 	Expects(!draft.items.empty());
 
 	auto &histories = _session->data().histories();
@@ -3557,17 +3551,6 @@ void ApiWrap::forwardMessages(
 		_session,
 		draft.items,
 		draft.options);
-
-	struct SharedCallback {
-		int requestsLeft = 0;
-		FnMut<void()> callback;
-	};
-	const auto shared = successCallback
-		? std::make_shared<SharedCallback>()
-		: std::shared_ptr<SharedCallback>();
-	if (successCallback) {
-		shared->callback = std::move(successCallback);
-	}
 
 	const auto count = int(draft.items.size());
 	const auto genClientSideMessage = action.generateLocal
@@ -3638,9 +3621,6 @@ void ApiWrap::forwardMessages(
 	auto localIds = std::shared_ptr<base::flat_map<uint64, FullMsgId>>();
 
 	const auto sendAccumulated = [&] {
-		if (shared) {
-			++shared->requestsLeft;
-		}
 		const auto idsCopy = localIds;
 		const auto scheduled = action.options.scheduled;
 		const auto starsPaid = std::min(
@@ -3701,11 +3681,6 @@ void ApiWrap::forwardMessages(
 					_session->api().updates().checkForSentToScheduled(
 						result);
 				}
-				if (shared && !--shared->requestsLeft) {
-					shared->callback();
-				}
-				if (peer->isSelf() && _session->premium()) {
-					ProcessRecentSelfForwards(
 						_session,
 						result,
 						peer->id,
@@ -3785,24 +3760,6 @@ void ApiWrap::forwardMessagesUnquoted(
 	Expects(!draft.items.empty());
 
 	auto &histories = _session->data().histories();
-
-	struct SharedCallback {
-		int requestsLeft = 0;
-		FnMut<void()> callback;
-	};
-
-	enum LastGroupType {
-		None,
-		Music,
-		Documents,
-		Medias,
-	};
-	const auto shared = successCallback
-		? std::make_shared<SharedCallback>()
-		: std::shared_ptr<SharedCallback>();
-	if (successCallback) {
-		shared->callback = std::move(successCallback);
-	}
 
 	const auto count = int(draft.items.size());
 	const auto history = action.history;
@@ -3910,8 +3867,6 @@ void ApiWrap::forwardMessagesUnquoted(
 	};
 
 	const auto forwardQuotedSingle = [&] (not_null<HistoryItem *> item) {
-		if (shared) {
-			++shared->requestsLeft;
 		}
 
 		auto currentIds = QVector<MTPint>();
@@ -3951,8 +3906,6 @@ void ApiWrap::forwardMessagesUnquoted(
 				Api::SuggestToMTP(action.options.suggest)
 			)).done([=](const MTPUpdates &result) {
 				applyUpdates(result);
-				if (shared && !--shared->requestsLeft) {
-					shared->callback();
 				}
 				finish();
 			}).fail([=](const MTP::Error &error) {
@@ -3966,8 +3919,6 @@ void ApiWrap::forwardMessagesUnquoted(
 	};
 
 	const auto forwardAlbumUnquoted = [&] {
-		if (shared) {
-			++shared->requestsLeft;
 		}
 
 		const auto medias = std::make_shared<QVector<Data::Media*>>();
@@ -4086,8 +4037,6 @@ void ApiWrap::forwardMessagesUnquoted(
 					MTP_long(starsPaid)
 				)).done([=](const MTPUpdates &result) {
 					applyUpdates(result);
-					if (shared && !--shared->requestsLeft) {
-						shared->callback();
 					}
 					finish();
 				}).fail([=](const MTP::Error &error) {
@@ -4139,8 +4088,6 @@ void ApiWrap::forwardMessagesUnquoted(
 	};
 
 	const auto forwardMediaUnquoted = [&] (not_null<HistoryItem *> item) {
-		if (shared) {
-			++shared->requestsLeft;
 		}
 		const auto media = item->media();
 
@@ -4158,8 +4105,6 @@ void ApiWrap::forwardMessagesUnquoted(
 		message.action.clearDraft = false;
 
 		auto doneCallback = [=] () {
-			if (shared && !--shared->requestsLeft) {
-				shared->callback();
 			}
 		};
 
@@ -4204,8 +4149,6 @@ void ApiWrap::forwardMessagesUnquoted(
 	};
 
 	const auto forwardDiceUnquoted = [&] (not_null<HistoryItem *> item) {
-		if (shared) {
-			++shared->requestsLeft;
 		}
 		const auto dice = dynamic_cast<Data::MediaDice*>(item->media());
 		if (!dice) {
@@ -4217,15 +4160,11 @@ void ApiWrap::forwardMessagesUnquoted(
 		message.action.clearDraft = false;
 
 		Api::SendDice(message, [=] (const MTPUpdates &result, mtpRequestId requestId) {
-			if (shared && !--shared->requestsLeft) {
-				shared->callback();
 			}
 		}, true); // forwarding
 	};
 
 	const auto forwardMessageUnquoted = [&] (not_null<HistoryItem *> item) {
-		if (shared) {
-			++shared->requestsLeft;
 		}
 
 		const auto webpage = (!item->media() || !item->media()->webpage())
@@ -4246,8 +4185,6 @@ void ApiWrap::forwardMessagesUnquoted(
 			std::move(message),
 			std::nullopt,
 			[=] (const MTPUpdates &result, mtpRequestId requestId) {
-				if (shared && !--shared->requestsLeft) {
-					shared->callback();
 				}
 			}, true); // forwarding
 	};
