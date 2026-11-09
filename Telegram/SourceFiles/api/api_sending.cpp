@@ -842,4 +842,12 @@ void SendLocationPoint(
 	});
 }
 
+bool ForwardsLocally(
+		Data::ForwardOptions options,
+		Data::GroupingOptions groupOptions) {
+	return (options != Data::ForwardOptions::PreserveInfo)
+		&& ((groupOptions == Data::GroupingOptions::RegroupAll)
+			|| ::Kotato::JsonSettings::GetBool("forward_force_old_unquoted"));
+}
+
 } // namespace Api

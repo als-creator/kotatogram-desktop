@@ -3527,7 +3527,16 @@ void ApiWrap::finishForwarding(const SendAction &action) {
 void ApiWrap::forwardMessages(
 		Data::ResolvedForwardDraft &&draft,
 		SendAction action,
-		FnMut<void()> &&successCallback) {
+		FnMut<void()> &&successCallback,
+		bool allowLocalCopy = false) {
+	if (allowLocalCopy && Api::ForwardsLocally(draft.options, draft.groupOptions)) {
+		forwardMessagesUnquoted(
+			std::move(draft),
+			action,
+			std::move(successCallback),
+			false);
+		return;
+	}
 	Expects(!draft.items.empty());
 
 	auto &histories = _session->data().histories();
@@ -3756,12 +3765,85 @@ void ApiWrap::forwardMessages(
 void ApiWrap::forwardMessagesUnquoted(
 		Data::ResolvedForwardDraft &&draft,
 		const SendAction &action,
-		FnMut<void()> &&successCallback) {
+		FnMut<void()> &&successCallback,
+		bool richPagesResolved = false) {
 	Expects(!draft.items.empty());
+
+	if (!richPagesResolved) {
+		auto partial = std::vector<not_null<HistoryItem*>>();
+		for (const auto &item : draft.items) {
+			const auto page = item->richPage();
+			if (page && page->part && !item->fullRichPage()) {
+				partial.push_back(item);
+			}
+		}
+		if (!partial.empty()) {
+			struct Pending {
+				int left = 0;
+				std::vector<FullMsgId> ids;
+				Data::ForwardOptions options;
+				Data::GroupingOptions groupOptions;
+				FnMut<void()> callback;
+			};
+			const auto pending = std::make_shared<Pending>(Pending{
+				.left = int(partial.size()),
+				.options = draft.options,
+				.groupOptions = draft.groupOptions,
+				.callback = std::move(successCallback),
+			});
+			pending->ids.reserve(draft.items.size());
+			for (const auto &item : draft.items) {
+				pending->ids.push_back(item->fullId());
+			}
+			const auto resolved = [=](std::shared_ptr<const Iv::RichPage>) {
+				if (--pending->left) {
+					return;
+				}
+				auto items = HistoryItemsList();
+				for (const auto &id : pending->ids) {
+					if (const auto item = _session->data().message(id)) {
+						items.push_back(item);
+					}
+				}
+				if (!items.empty()) {
+					forwardMessagesUnquoted(
+						{
+							.items = std::move(items),
+							.options = pending->options,
+							.groupOptions = pending->groupOptions,
+						},
+						action,
+						std::move(pending->callback),
+						true);
+				}
+			};
+			for (const auto &item : partial) {
+				Core::App().iv().resolveRichMessage(_session, item, resolved);
+			}
+			return;
+		}
+	}
 
 	auto &histories = _session->data().histories();
 
-	const auto count = int(draft.items.size());
+	struct SharedCallback {
+		int requestsLeft = 0;
+		FnMut<void()> callback;
+	};
+
+	enum LastGroupType {
+		None,
+		Music,
+		Documents,
+		Medias,
+	};
+	const auto shared = successCallback
+		? std::make_shared<SharedCallback>()
+		: std::shared_ptr<SharedCallback>();
+	if (successCallback) {
+		shared->callback = std::move(successCallback);
+	}
+
 	const auto history = action.history;
 	const auto peer = history->peer;
 
@@ -3867,6 +3949,8 @@ void ApiWrap::forwardMessagesUnquoted(
 	};
 
 	const auto forwardQuotedSingle = [&] (not_null<HistoryItem *> item) {
+		if (shared) {
+			++shared->requestsLeft;
 		}
 
 		auto currentIds = QVector<MTPint>();
@@ -3906,6 +3990,8 @@ void ApiWrap::forwardMessagesUnquoted(
 				Api::SuggestToMTP(action.options.suggest)
 			)).done([=](const MTPUpdates &result) {
 				applyUpdates(result);
+				if (shared && !--shared->requestsLeft) {
+					shared->callback();
 				}
 				finish();
 			}).fail([=](const MTP::Error &error) {
@@ -3919,6 +4005,8 @@ void ApiWrap::forwardMessagesUnquoted(
 	};
 
 	const auto forwardAlbumUnquoted = [&] {
+		if (shared) {
+			++shared->requestsLeft;
 		}
 
 		const auto medias = std::make_shared<QVector<Data::Media*>>();
@@ -4037,6 +4125,8 @@ void ApiWrap::forwardMessagesUnquoted(
 					MTP_long(starsPaid)
 				)).done([=](const MTPUpdates &result) {
 					applyUpdates(result);
+					if (shared && !--shared->requestsLeft) {
+						shared->callback();
 					}
 					finish();
 				}).fail([=](const MTP::Error &error) {
@@ -4051,7 +4141,7 @@ void ApiWrap::forwardMessagesUnquoted(
 									? media->document()->stickerOrGifOrigin()
 									: Data::FileOrigin();
 							const auto usedFileReference = mediaRefs->value(index);
-							
+
 							refreshFileReference(origin, [=, &refreshRequests, &wasUpdated](const auto &result) {
 								const auto currentMediaReference = media->photo()
 									? media->photo()->fileReference()
@@ -4088,6 +4178,8 @@ void ApiWrap::forwardMessagesUnquoted(
 	};
 
 	const auto forwardMediaUnquoted = [&] (not_null<HistoryItem *> item) {
+		if (shared) {
+			++shared->requestsLeft;
 		}
 		const auto media = item->media();
 
@@ -4105,6 +4197,8 @@ void ApiWrap::forwardMessagesUnquoted(
 		message.action.clearDraft = false;
 
 		auto doneCallback = [=] () {
+			if (shared && !--shared->requestsLeft) {
+				shared->callback();
 			}
 		};
 
@@ -4149,6 +4243,8 @@ void ApiWrap::forwardMessagesUnquoted(
 	};
 
 	const auto forwardDiceUnquoted = [&] (not_null<HistoryItem *> item) {
+		if (shared) {
+			++shared->requestsLeft;
 		}
 		const auto dice = dynamic_cast<Data::MediaDice*>(item->media());
 		if (!dice) {
@@ -4160,11 +4256,15 @@ void ApiWrap::forwardMessagesUnquoted(
 		message.action.clearDraft = false;
 
 		Api::SendDice(message, [=] (const MTPUpdates &result, mtpRequestId requestId) {
+			if (shared && !--shared->requestsLeft) {
+				shared->callback();
 			}
 		}, true); // forwarding
 	};
 
 	const auto forwardMessageUnquoted = [&] (not_null<HistoryItem *> item) {
+		if (shared) {
+			++shared->requestsLeft;
 		}
 
 		const auto webpage = (!item->media() || !item->media()->webpage())
@@ -4185,6 +4285,8 @@ void ApiWrap::forwardMessagesUnquoted(
 			std::move(message),
 			std::nullopt,
 			[=] (const MTPUpdates &result, mtpRequestId requestId) {
+				if (shared && !--shared->requestsLeft) {
+					shared->callback();
 				}
 			}, true); // forwarding
 	};
