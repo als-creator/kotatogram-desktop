@@ -527,3 +527,22 @@ The `Error` template parameter defaults to `rpl::no_error`: `rpl::producer<Type,
 - Pass `rpl::lifetime` to `on_...` methods or store returned lifetime
 - Use `rpl::duplicate(producer)` to reuse a producer multiple times
 - Combined producers automatically unpack tuples in lambdas (works with `rpl::map`, `rpl::filter`, and `rpl::on_next`)
+
+## GitHub SSH key
+
+All GitHub operations (clone, fetch, push, `gh`) use the project key
+`~/.ssh/id_rsa` (account `als-creator`). It is pinned to `github.com` in
+`~/.ssh/config` (`IdentitiesOnly yes`), so no other key is offered.
+`~/.ssh/id_omtit` is the `omtit` server key; GitHub rejects it.
+
+Check: `ssh -T git@github.com` -> `Hi als-creator!`. Remotes use SSH:
+`git@github.com:als-creator/<repo>.git`. Do not generate new keys.
+
+## Пуш после каждого пункта
+
+- Каждый завершённый пункт/этап (тесты и сборка зелёные) сразу коммитить
+  и пушить в основную ветку: у каждого пункта — свой коммит на удалённом,
+  чтобы его можно было откатить отдельно, не задевая соседние.
+- Не копить незапушенные коммиты «в один пуш потом»: отладка истории
+  (`git bisect`, откат) работает только по запушенной истории.
+- Список изменений многошаговых работ — двуязычный, русский блок первым.
