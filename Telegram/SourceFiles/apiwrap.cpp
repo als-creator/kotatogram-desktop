@@ -3528,13 +3528,13 @@ void ApiWrap::forwardMessages(
 		Data::ResolvedForwardDraft &&draft,
 		SendAction action,
 		FnMut<void()> &&successCallback,
-		bool allowLocalCopy = false) {
-	if (allowLocalCopy && Api::ForwardsLocally(draft.options, draft.groupOptions)) {
+		bool allowLocalCopy) {
+	if (allowLocalCopy
+		&& Api::ForwardsLocally(draft.options, draft.groupOptions)) {
 		forwardMessagesUnquoted(
 			std::move(draft),
 			action,
-			std::move(successCallback),
-			false);
+			std::move(successCallback));
 		return;
 	}
 	Expects(!draft.items.empty());
@@ -3561,9 +3561,29 @@ void ApiWrap::forwardMessages(
 		draft.items,
 		draft.options);
 
+	const auto collected = CollectForwardRanges(draft.items);
+	if (collected.empty()) {
+		if (successCallback) {
+			successCallback();
+		}
+		return;
+	}
+
+	struct SharedCallback {
+		int requestsLeft = 0;
+		FnMut<void()> callback;
+	};
+	const auto shared = successCallback
+		? std::make_shared<SharedCallback>()
+		: std::shared_ptr<SharedCallback>();
+	if (successCallback) {
+		shared->callback = std::move(successCallback);
+	}
+
 	const auto count = int(draft.items.size());
 	const auto genClientSideMessage = action.generateLocal
-		&& (count < 2)
+		&& (count == 1)
+		&& !draft.items.front()->isEphemeral()
 		&& (draft.options == Data::ForwardOptions::PreserveInfo);
 	const auto history = action.history;
 	const auto peer = history->peer;
@@ -3623,19 +3643,30 @@ void ApiWrap::forwardMessages(
 		sendFlags |= SendFlag::f_reply_to;
 	}
 
-	auto forwardFrom = draft.items.front()->history()->peer;
-	auto forwardGroupId = draft.items.front()->groupId();
+	auto forwardFrom = collected.front().items.front()->history()->peer;
+	auto fromEphemeral = false;
 	auto ids = QVector<MTPint>();
 	auto randomIds = QVector<MTPlong>();
 	auto localIds = std::shared_ptr<base::flat_map<uint64, FullMsgId>>();
 
 	const auto sendAccumulated = [&] {
+		if (ids.isEmpty()) {
+			return;
+		}
+		if (shared) {
+			++shared->requestsLeft;
+		}
 		const auto idsCopy = localIds;
 		const auto scheduled = action.options.scheduled;
 		const auto starsPaid = std::min(
 			action.options.starsApproved,
 			int(ids.size() * peer->starsPerMessageChecked()));
 		auto oneFlags = sendFlags;
+		if (fromEphemeral) {
+			oneFlags |= SendFlag::f_from_ephemeral;
+		} else {
+			oneFlags &= ~SendFlag::f_from_ephemeral;
+		}
 		if (starsPaid) {
 			action.options.starsApproved -= starsPaid;
 			oneFlags |= SendFlag::f_allow_paid_stars;
@@ -3690,6 +3721,11 @@ void ApiWrap::forwardMessages(
 					_session->api().updates().checkForSentToScheduled(
 						result);
 				}
+				if (shared && !--shared->requestsLeft) {
+					shared->callback();
+				}
+				if (peer->isSelf() && _session->premium()) {
+					ProcessRecentSelfForwards(
 						_session,
 						result,
 						peer->id,
@@ -3717,51 +3753,51 @@ void ApiWrap::forwardMessages(
 
 	ids.reserve(count);
 	randomIds.reserve(count);
-	for (const auto &item : draft.items) {
-		const auto randomId = base::RandomValue<uint64>();
-		if (genClientSideMessage) {
-			const auto newId = FullMsgId(
-				peer->id,
-				_session->data().nextLocalMessageId());
-			history->addNewLocalMessage({
-				.id = newId.msg,
-				.flags = flags,
-				.from = NewMessageFromId(action),
-				.replyTo = {
-					.topicRootId = topMsgId,
-					.monoforumPeerId = monoforumPeerId,
-				},
-				.date = NewMessageDate(action.options),
-				.shortcutId = action.options.shortcutId,
-				.starsPaid = action.options.starsApproved,
-				.postAuthor = NewMessagePostAuthor(action),
-				.suggest = HistoryMessageSuggestInfo(action.options),
-				// forwarded messages don't have effects
-				//.effectId = action.options.effectId,
-			}, item);
-			_session->data().registerMessageRandomId(randomId, newId);
-			if (!localIds) {
-				localIds = std::make_shared<base::flat_map<uint64, FullMsgId>>();
+	for (const auto &range : collected) {
+		fromEphemeral = range.fromEphemeral;
+		for (const auto &item : range.items) {
+			const auto randomId = base::RandomValue<uint64>();
+			if (genClientSideMessage) {
+				const auto newId = FullMsgId(
+					peer->id,
+					_session->data().nextLocalMessageId());
+				history->addNewLocalMessage({
+					.id = newId.msg,
+					.flags = flags,
+					.from = NewMessageFromId(action),
+					.replyTo = {
+						.topicRootId = topMsgId,
+						.monoforumPeerId = monoforumPeerId,
+					},
+					.date = NewMessageDate(action.options),
+					.shortcutId = action.options.shortcutId,
+					.starsPaid = action.options.starsApproved,
+					.postAuthor = NewMessagePostAuthor(action),
+					.suggest = HistoryMessageSuggestInfo(action.options),
+					// forwarded messages don't have effects
+					//.effectId = action.options.effectId,
+				}, item);
+				_session->data().registerMessageRandomId(randomId, newId);
+				if (!localIds) {
+					localIds = std::make_shared<base::flat_map<uint64, FullMsgId>>();
+				}
+				localIds->emplace(randomId, newId);
 			}
-			localIds->emplace(randomId, newId);
+			const auto newFrom = item->history()->peer;
+			if (forwardFrom != newFrom
+				|| (draft.groupOptions == Data::GroupingOptions::Separate)) {
+				sendAccumulated();
+				forwardFrom = newFrom;
+			}
+			ids.push_back(range.fromEphemeral
+				? MTP_int(_session->ephemeralMessages().lookupId(item))
+				: MTP_int(item->id));
+			randomIds.push_back(MTP_long(randomId));
 		}
-		const auto newFrom = item->history()->peer;
-		const auto newGroupId = item->groupId();
-		if (item != draft.items.front() &&
-			((draft.groupOptions == Data::GroupingOptions::GroupAsIs
-				&& (forwardGroupId != newGroupId || forwardFrom != newFrom))
-			|| draft.groupOptions == Data::GroupingOptions::Separate)) {
-			sendAccumulated();
-			forwardFrom = newFrom;
-			forwardGroupId = newGroupId;
-		}
-		ids.push_back(MTP_int(item->id));
-		randomIds.push_back(MTP_long(randomId));
+		sendAccumulated();
 	}
-	sendAccumulated();
 	_session->data().sendHistoryChangeNotifications();
 }
-
 void ApiWrap::forwardMessagesUnquoted(
 		Data::ResolvedForwardDraft &&draft,
 		const SendAction &action,
